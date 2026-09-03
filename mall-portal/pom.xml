@@ -11,6 +11,10 @@
     <name>mall-portal</name>
     <description>mall-portal project for mall</description>
 
+    <properties>
+        <start-class>com.macro.mall.portal.MallPortalApplication</start-class>
+    </properties>
+
     <parent>
         <groupId>com.macro.mall</groupId>
         <artifactId>mall</artifactId>
@@ -55,6 +59,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>${start-class}</mainClass>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>io.fabric8</groupId>

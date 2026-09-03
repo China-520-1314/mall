@@ -35,6 +35,17 @@ secure:
       - /product/**
       - /brand/**
       - /alipay/**
+      - /assistant/chat
+
+# 词元神智能客服配置。启动脚本会按需从 Codex 本地认证注入专用 Key。
+ciyuanshen:
+  base-url: ${CIYUANSHEN_BASE_URL:https://api.ciyuanshen.top/v1}
+  api-key: ${CIYUANSHEN_API_KEY:}
+  text-api-key: ${CIYUANSHEN_TEXT_API_KEY:}
+  model: ${CIYUANSHEN_MODEL:gpt-5.6-terra}
+  timeout-seconds: ${CIYUANSHEN_TIMEOUT_SECONDS:30}
+  max-history: ${CIYUANSHEN_MAX_HISTORY:8}
+  max-message-length: ${CIYUANSHEN_MAX_MESSAGE_LENGTH:800}
 
 springdoc:
   swagger-ui:

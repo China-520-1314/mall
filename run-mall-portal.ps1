@@ -11,12 +11,32 @@ $ErrorActionPreference = 'Stop'
 $backendRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $authPath = Join-Path $env:USERPROFILE '.codex/auth.json'
 
-# 优先使用显式配置的文字 Key；没有时，仅为本次子进程读取 Codex 本地认证。
+function Initialize-CiyuanshenProcessKey {
+    foreach ($name in @('CIYUANSHEN_TEXT_API_KEY', 'CIYUANSHEN_API_KEY')) {
+        if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name, 'Process'))) {
+            return
+        }
+
+        $userValue = [Environment]::GetEnvironmentVariable($name, 'User')
+        if (-not [string]::IsNullOrWhiteSpace($userValue)) {
+            [Environment]::SetEnvironmentVariable($name, $userValue, 'Process')
+            return
+        }
+    }
+}
+
+# 双击启动时资源管理器可能仍持有旧环境，先读取用户级词元神 Key；不使用 OPENAI_API_KEY，避免生图专用 Key 覆盖文字模型 Key。
+Initialize-CiyuanshenProcessKey
+
+# 只有两个词元神变量都为空时才读取本地认证。
 if ([string]::IsNullOrWhiteSpace($env:CIYUANSHEN_TEXT_API_KEY) -and
+    [string]::IsNullOrWhiteSpace($env:CIYUANSHEN_API_KEY) -and
     (Test-Path -LiteralPath $authPath)) {
     $auth = Get-Content -LiteralPath $authPath -Raw | ConvertFrom-Json
-    if (-not [string]::IsNullOrWhiteSpace($auth.OPENAI_API_KEY)) {
-        $env:CIYUANSHEN_TEXT_API_KEY = [string]$auth.OPENAI_API_KEY
+    if (-not [string]::IsNullOrWhiteSpace($auth.CIYUANSHEN_TEXT_API_KEY)) {
+        $env:CIYUANSHEN_TEXT_API_KEY = [string]$auth.CIYUANSHEN_TEXT_API_KEY
+    } elseif (-not [string]::IsNullOrWhiteSpace($auth.CIYUANSHEN_API_KEY)) {
+        $env:CIYUANSHEN_API_KEY = [string]$auth.CIYUANSHEN_API_KEY
     }
 }
 
@@ -30,16 +50,9 @@ if (-not [string]::IsNullOrWhiteSpace($DatasourcePassword)) {
     $env:MALL_DATASOURCE_PASSWORD = $DatasourcePassword
 }
 
-# 最后才兼容通用变量，避免意外使用其他模型供应商的 OPENAI_API_KEY。
-if ([string]::IsNullOrWhiteSpace($env:CIYUANSHEN_TEXT_API_KEY) -and
-    [string]::IsNullOrWhiteSpace($env:CIYUANSHEN_API_KEY) -and
-    -not [string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY)) {
-    $env:CIYUANSHEN_TEXT_API_KEY = [string]$env:OPENAI_API_KEY
-}
-
 if ([string]::IsNullOrWhiteSpace($env:CIYUANSHEN_TEXT_API_KEY) -and
     [string]::IsNullOrWhiteSpace($env:CIYUANSHEN_API_KEY)) {
-    throw '未找到词元神 Key。请设置 CIYUANSHEN_TEXT_API_KEY，或确保当前用户存在 .codex/auth.json。'
+    throw '未找到词元神 Key。请设置 CIYUANSHEN_API_KEY 或 CIYUANSHEN_TEXT_API_KEY。'
 }
 
 Push-Location $backendRoot

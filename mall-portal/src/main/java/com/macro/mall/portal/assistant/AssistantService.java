@@ -50,7 +50,7 @@ public class AssistantService {
             String reply = client.complete(SYSTEM_INSTRUCTIONS, input);
             return new AssistantChatResponse(reply, false);
         } catch (CiyuanshenClient.AssistantClientException ex) {
-            LOGGER.warn("智能客服上游调用失败：{}", ex.getMessage());
+            LOGGER.warn("智能客服上游调用失败：{}", ex.getMessage(), ex);
             return fallback("我暂时无法连接智能客服服务。你可以稍后重试，或先查看商品详情、订单和售后页面中的说明。 ");
         }
     }

@@ -9,3 +9,20 @@ target/
 .settings/
 .classpath
 .project
+
+# Local development artifacts
+node_modules/
+dist/
+unpackage/
+*.log
+*.tgz
+mall-portal/portal-server.err.log
+mall-portal/portal-server.log
+mall-app-web/.env
+mall-admin-web/.env
+extracted-source/
+github-extracted/
+output/
+doc-work/
+.playwright-cli/
+.nested-git-backup/

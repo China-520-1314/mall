@@ -2,6 +2,7 @@ package com.macro.mall.portal.controller;
 
 import com.macro.mall.common.api.CommonResult;
 import com.macro.mall.model.UmsMember;
+import com.macro.mall.portal.domain.EmailCodePurpose;
 import com.macro.mall.portal.service.UmsMemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,22 +37,41 @@ public class UmsMemberController {
     @Operation(summary = "会员注册")
     @RequestMapping(value = "/register", method = RequestMethod.POST)
     @ResponseBody
-    public CommonResult register(@RequestParam String username,
-                                 @RequestParam String password,
-                                 @RequestParam String telephone,
-                                 @RequestParam String authCode) {
-        memberService.register(username, password, telephone, authCode);
+    public CommonResult<Void> register(@RequestParam String password,
+                                       @RequestParam String confirmPassword,
+                                       @RequestParam String email,
+                                       @RequestParam String authCode) {
+        memberService.register(password, confirmPassword, email, authCode);
         return CommonResult.success(null,"注册成功");
+    }
+
+    @Operation(summary = "发送QQ邮箱验证码")
+    @RequestMapping(value = "/sendEmailCode", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult<Void> sendEmailCode(@RequestParam String email,
+                                             @RequestParam EmailCodePurpose purpose) {
+        memberService.sendEmailCode(email, purpose);
+        return CommonResult.success(null, "验证码已发送，请查收QQ邮箱");
+    }
+
+    @Operation(summary = "通过邮箱验证码重置密码")
+    @RequestMapping(value = "/updatePassword", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult<Void> updatePassword(@RequestParam String email,
+                                              @RequestParam String password,
+                                              @RequestParam String authCode) {
+        memberService.updatePassword(email, password, authCode);
+        return CommonResult.success(null, "密码重置成功");
     }
 
     @Operation(summary = "会员登录")
     @RequestMapping(value = "/login", method = RequestMethod.POST)
     @ResponseBody
-    public CommonResult login(@RequestParam String username,
+    public CommonResult login(@RequestParam String email,
                               @RequestParam String password) {
-        String token = memberService.login(username, password);
+        String token = memberService.login(email, password);
         if (token == null) {
-            return CommonResult.validateFailed("用户名或密码错误");
+            return CommonResult.validateFailed("QQ邮箱或密码错误");
         }
         Map<String, String> tokenMap = new HashMap<>();
         tokenMap.put("token", token);
@@ -68,24 +88,6 @@ public class UmsMemberController {
         }
         UmsMember member = memberService.getCurrentMember();
         return CommonResult.success(member);
-    }
-
-    @Operation(summary = "获取验证码")
-    @RequestMapping(value = "/getAuthCode", method = RequestMethod.GET)
-    @ResponseBody
-    public CommonResult getAuthCode(@RequestParam String telephone) {
-        String authCode = memberService.generateAuthCode(telephone);
-        return CommonResult.success(authCode,"获取验证码成功");
-    }
-
-    @Operation(summary = "会员修改密码")
-    @RequestMapping(value = "/updatePassword", method = RequestMethod.POST)
-    @ResponseBody
-    public CommonResult updatePassword(@RequestParam String telephone,
-                                 @RequestParam String password,
-                                 @RequestParam String authCode) {
-        memberService.updatePassword(telephone,password,authCode);
-        return CommonResult.success(null,"密码修改成功");
     }
 
 

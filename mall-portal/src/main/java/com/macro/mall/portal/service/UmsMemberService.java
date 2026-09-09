@@ -1,6 +1,7 @@
 package com.macro.mall.portal.service;
 
 import com.macro.mall.model.UmsMember;
+import com.macro.mall.portal.domain.EmailCodePurpose;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,18 +24,18 @@ public interface UmsMemberService {
      * 用户注册
      */
     @Transactional
-    void register(String username, String password, String telephone, String authCode);
+    void register(String password, String confirmPassword, String email, String authCode);
 
     /**
-     * 生成验证码
+     * 发送注册或重置密码验证码
      */
-    String generateAuthCode(String telephone);
+    void sendEmailCode(String email, EmailCodePurpose purpose);
 
     /**
-     * 修改密码
+     * 通过邮箱验证码重置密码
      */
     @Transactional
-    void updatePassword(String telephone, String password, String authCode);
+    void updatePassword(String email, String password, String authCode);
 
     /**
      * 获取当前登录会员
@@ -55,7 +56,7 @@ public interface UmsMemberService {
     /**
      * 登录后获取token
      */
-    String login(String username, String password);
+    String login(String email, String password);
 
     /**
      * 刷新token

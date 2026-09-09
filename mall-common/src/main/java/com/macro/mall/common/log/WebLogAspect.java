@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 统一日志处理切面
@@ -38,6 +39,9 @@ import java.util.Map;
 @Order(1)
 public class WebLogAspect {
     private static final Logger LOGGER = LoggerFactory.getLogger(WebLogAspect.class);
+    private static final Set<String> SENSITIVE_PARAMETERS = Set.of(
+            "password", "authcode", "token", "accesstoken", "refreshtoken"
+    );
 
     @Pointcut("execution(public * com.macro.mall.controller.*.*(..))||execution(public * com.macro.mall.*.controller.*.*(..))")
     public void webLog() {
@@ -111,7 +115,7 @@ public class WebLogAspect {
                     key = requestParam.value();
                 }
                 if(args[i]!=null){
-                    map.put(key, args[i]);
+                    map.put(key, maskSensitiveValue(key, args[i]));
                     argList.add(map);
                 }
             }
@@ -123,5 +127,12 @@ public class WebLogAspect {
         } else {
             return argList;
         }
+    }
+
+    private Object maskSensitiveValue(String key, Object value) {
+        if (SENSITIVE_PARAMETERS.contains(key.toLowerCase())) {
+            return "******";
+        }
+        return value;
     }
 }

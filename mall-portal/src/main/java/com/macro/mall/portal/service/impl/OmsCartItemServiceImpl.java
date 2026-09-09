@@ -2,8 +2,11 @@ package com.macro.mall.portal.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.macro.mall.mapper.OmsCartItemMapper;
+import com.macro.mall.mapper.PmsProductMapper;
 import com.macro.mall.model.OmsCartItem;
 import com.macro.mall.model.OmsCartItemExample;
+import com.macro.mall.model.PmsProduct;
+import com.macro.mall.model.PmsProductExample;
 import com.macro.mall.model.UmsMember;
 import com.macro.mall.portal.dao.PortalProductDao;
 import com.macro.mall.portal.domain.CartProduct;
@@ -11,6 +14,7 @@ import com.macro.mall.portal.domain.CartPromotionItem;
 import com.macro.mall.portal.service.OmsCartItemService;
 import com.macro.mall.portal.service.OmsPromotionService;
 import com.macro.mall.portal.service.UmsMemberService;
+import com.macro.mall.common.exception.Asserts;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -34,9 +38,22 @@ public class OmsCartItemServiceImpl implements OmsCartItemService {
     private OmsPromotionService promotionService;
     @Autowired
     private UmsMemberService memberService;
+    @Autowired
+    private PmsProductMapper productMapper;
 
     @Override
     public int add(OmsCartItem cartItem) {
+        if (cartItem == null || cartItem.getProductId() == null || cartItem.getQuantity() == null
+                || cartItem.getQuantity() <= 0) {
+            Asserts.fail("购物车商品参数无效");
+        }
+        PmsProductExample productExample = new PmsProductExample();
+        productExample.createCriteria().andIdEqualTo(cartItem.getProductId())
+                .andDeleteStatusEqualTo(0).andPublishStatusEqualTo(1);
+        List<PmsProduct> products = productMapper.selectByExample(productExample);
+        if (products.isEmpty()) {
+            Asserts.fail("商品不存在或已下架");
+        }
         int count;
         UmsMember currentMember =memberService.getCurrentMember();
         cartItem.setMemberId(currentMember.getId());
@@ -112,6 +129,15 @@ public class OmsCartItemServiceImpl implements OmsCartItemService {
 
     @Override
     public CartProduct getCartProduct(Long productId) {
+        if (productId == null) {
+            Asserts.fail("商品不存在");
+        }
+        PmsProductExample productExample = new PmsProductExample();
+        productExample.createCriteria().andIdEqualTo(productId)
+                .andDeleteStatusEqualTo(0).andPublishStatusEqualTo(1);
+        if (productMapper.selectByExample(productExample).isEmpty()) {
+            Asserts.fail("商品不存在或已下架");
+        }
         return productDao.getCartProduct(productId);
     }
 

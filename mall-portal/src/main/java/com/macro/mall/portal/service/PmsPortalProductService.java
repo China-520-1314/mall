@@ -1,7 +1,11 @@
 package com.macro.mall.portal.service;
 
 import com.macro.mall.model.PmsProduct;
+import com.macro.mall.model.PmsComment;
+import com.macro.mall.common.api.CommonPage;
 import com.macro.mall.portal.domain.PmsPortalProductDetail;
+import com.macro.mall.portal.domain.ProductCommentBatchParam;
+import com.macro.mall.portal.domain.ProductCommentSummary;
 import com.macro.mall.portal.domain.PmsProductCategoryNode;
 
 import java.util.List;
@@ -25,4 +29,10 @@ public interface PmsPortalProductService {
      * 获取前台商品详情
      */
     PmsPortalProductDetail detail(Long id);
+
+    CommonPage<PmsComment> listComments(Long productId, Integer pageNum, Integer pageSize);
+
+    ProductCommentSummary getCommentSummary(Long productId);
+
+    void createComments(ProductCommentBatchParam param, String clientIp);
 }

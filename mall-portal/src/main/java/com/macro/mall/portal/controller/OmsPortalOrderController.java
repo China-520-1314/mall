@@ -37,6 +37,13 @@ public class OmsPortalOrderController {
         return CommonResult.success(confirmOrderResult);
     }
 
+    @Operation(summary = "生成立即购买确认单")
+    @RequestMapping(value = "/generateBuyNowConfirmOrder", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult<ConfirmOrderResult> generateBuyNowConfirmOrder(@RequestBody OrderParam orderParam) {
+        return CommonResult.success(portalOrderService.generateBuyNowConfirmOrder(orderParam));
+    }
+
     @Operation(summary = "根据购物车信息生成订单")
     @RequestMapping(value = "/generateOrder", method = RequestMethod.POST)
     @ResponseBody
@@ -65,6 +72,7 @@ public class OmsPortalOrderController {
     @RequestMapping(value = "/cancelOrder", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult cancelOrder(Long orderId) {
+        portalOrderService.detail(orderId);
         portalOrderService.sendDelayMessageCancelOrder(orderId);
         return CommonResult.success(null);
     }
@@ -93,7 +101,7 @@ public class OmsPortalOrderController {
     @RequestMapping(value = "/cancelUserOrder", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult cancelUserOrder(Long orderId) {
-        portalOrderService.cancelOrder(orderId);
+        portalOrderService.cancelUserOrder(orderId);
         return CommonResult.success(null);
     }
 

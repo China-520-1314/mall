@@ -33,6 +33,8 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <skipTests>true</skipTests>
+        <!-- Keep normal local builds independent from a Docker daemon. -->
+        <docker.skip>true</docker.skip>
         <docker.host>http://192.168.3.101:2375</docker.host>
         <docker.maven.plugin.version>0.45.1</docker.maven.plugin.version>
         <pagehelper-starter.version>2.1.1</pagehelper-starter.version>
@@ -54,7 +56,7 @@
         <mall-mbg.version>1.0-SNAPSHOT</mall-mbg.version>
         <mall-security.version>1.0-SNAPSHOT</mall-security.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
-        <bouncycastle.version>1.84</bouncycastle.version>
+        <bouncycastle.version>1.83</bouncycastle.version>
     </properties>
 
     <dependencies>
@@ -230,6 +232,7 @@
                             </execution>
                         </executions>
                     <configuration>
+                        <skip>${docker.skip}</skip>
                         <!-- Docker 远程管理地址-->
                         <dockerHost>${docker.host}</dockerHost>
                         <images>
@@ -277,6 +280,15 @@
     </build>
 
     <!--使用aliyun的镜像源提升依赖下载速度-->
+    <profiles>
+        <profile>
+            <id>docker</id>
+            <properties>
+                <docker.skip>false</docker.skip>
+            </properties>
+        </profile>
+    </profiles>
+
     <repositories>
         <repository>
             <id>aliyunmaven</id>

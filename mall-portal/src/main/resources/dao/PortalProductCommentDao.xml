@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.macro.mall.portal.dao.PortalProductCommentDao">
+    <select id="selectCommentedOrderItemIds" resultType="long">
+        SELECT order_item_id
+        FROM pms_comment
+        WHERE order_item_id IN
+        <foreach collection="orderItemIds" item="id" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="countByOrderId" resultType="int">
+        SELECT COUNT(*) FROM pms_comment WHERE order_id = #{orderId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="comment.id">
+        INSERT INTO pms_comment (
+            product_id, member_id, order_id, order_item_id, member_nick_name, product_name,
+            star, member_ip, create_time, show_status, product_attribute, collect_couont,
+            read_count, content, pics, member_icon, replay_count
+        ) VALUES (
+            #{comment.productId}, #{memberId}, #{orderId}, #{orderItemId},
+            #{comment.memberNickName}, #{comment.productName}, #{comment.star}, #{comment.memberIp},
+            #{comment.createTime}, #{comment.showStatus}, #{comment.productAttribute},
+            #{comment.collectCouont}, #{comment.readCount}, #{comment.content}, #{comment.pics},
+            #{comment.memberIcon}, #{comment.replayCount}
+        )
+    </insert>
+
+    <select id="getSummary" resultType="com.macro.mall.portal.domain.ProductCommentSummary">
+        SELECT
+            COUNT(*) AS totalCount,
+            COALESCE(SUM(CASE WHEN star &gt;= 4 THEN 1 ELSE 0 END), 0) AS goodCount,
+            COALESCE(ROUND(SUM(CASE WHEN star &gt;= 4 THEN 1 ELSE 0 END) * 100.0 /
+                NULLIF(COUNT(*), 0)), 0) AS goodRate,
+            COALESCE(ROUND(AVG(star), 1), 0) AS averageStar,
+            COALESCE(SUM(CASE WHEN star = 1 THEN 1 ELSE 0 END), 0) AS star1Count,
+            COALESCE(SUM(CASE WHEN star = 2 THEN 1 ELSE 0 END), 0) AS star2Count,
+            COALESCE(SUM(CASE WHEN star = 3 THEN 1 ELSE 0 END), 0) AS star3Count,
+            COALESCE(SUM(CASE WHEN star = 4 THEN 1 ELSE 0 END), 0) AS star4Count,
+            COALESCE(SUM(CASE WHEN star = 5 THEN 1 ELSE 0 END), 0) AS star5Count
+        FROM pms_comment
+        WHERE product_id = #{productId} AND show_status = 1
+    </select>
+</mapper>

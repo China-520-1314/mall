@@ -4,6 +4,7 @@ import com.macro.mall.model.OmsCartItem;
 import com.macro.mall.model.PmsProductFullReduction;
 import com.macro.mall.model.PmsProductLadder;
 import com.macro.mall.model.PmsSkuStock;
+import com.macro.mall.common.exception.Asserts;
 import com.macro.mall.portal.dao.PortalProductDao;
 import com.macro.mall.portal.domain.CartPromotionItem;
 import com.macro.mall.portal.domain.PromotionProduct;
@@ -36,6 +37,9 @@ public class OmsPromotionServiceImpl implements OmsPromotionService {
         for (Map.Entry<Long, List<OmsCartItem>> entry : productCartMap.entrySet()) {
             Long productId = entry.getKey();
             PromotionProduct promotionProduct = getPromotionProductById(productId, promotionProductList);
+            if (promotionProduct == null) {
+                Asserts.fail("购物车中包含已下架或已删除商品");
+            }
             List<OmsCartItem> itemList = entry.getValue();
             Integer promotionType = promotionProduct.getPromotionType();
             if (promotionType == 1) {
@@ -251,11 +255,15 @@ public class OmsPromotionServiceImpl implements OmsPromotionService {
      * 获取商品的原价
      */
     private PmsSkuStock getOriginalPrice(PromotionProduct promotionProduct, Long productSkuId) {
+        if (promotionProduct == null || productSkuId == null || promotionProduct.getSkuStockList() == null) {
+            Asserts.fail("商品规格不存在");
+        }
         for (PmsSkuStock skuStock : promotionProduct.getSkuStockList()) {
             if (productSkuId.equals(skuStock.getId())) {
                 return skuStock;
             }
         }
+        Asserts.fail("商品规格不存在");
         return null;
     }
 

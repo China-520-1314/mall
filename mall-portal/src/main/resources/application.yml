@@ -6,6 +6,23 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: ${QQ_MAIL_USERNAME:}
+    password: ${QQ_MAIL_AUTH_CODE:}
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+            required: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 mybatis:
   mapper-locations:
@@ -32,7 +49,13 @@ secure:
       - /druid/**
       - /sso/**
       - /home/**
-      - /product/**
+      - /product/search
+      - /product/categoryTreeList
+      - /product/detail/**
+      - /product/*/comments
+      - /product/*/commentSummary
+      - /uploads/comments/**
+      - /assistant/chat
       - /brand/**
       - /alipay/**
 
@@ -57,12 +80,33 @@ springdoc:
 redis:
   database: mall
   key:
-    authCode: 'ums:authCode'
     orderId: 'oms:orderId'
     member: 'ums:member'
   expire:
-    authCode: 90 # 验证码超期时间
     common: 86400 # 24小时
+
+# 邮箱验证码配置
+verification:
+  email:
+    code-expire-seconds: 300
+    cooldown-seconds: 10
+    hourly-limit: 5
+    max-attempts: 5
+
+file:
+  upload:
+    comment-dir: ${MALL_COMMENT_UPLOAD_DIR:${user.home}/mall-uploads/comments}
+
+# 智能客服：未配置密钥时自动使用本地商城问答。
+ciyuanshen:
+  base-url: ${CIYUANSHEN_BASE_URL:https://api.ciyuanshen.top/v1}
+  api-key: ${CIYUANSHEN_API_KEY:}
+  text-api-key: ${CIYUANSHEN_TEXT_API_KEY:}
+  model: ${CIYUANSHEN_MODEL:gpt-5.6-terra}
+  timeout-seconds: ${CIYUANSHEN_TIMEOUT_SECONDS:30}
+  max-history: ${CIYUANSHEN_MAX_HISTORY:8}
+  max-message-length: ${CIYUANSHEN_MAX_MESSAGE_LENGTH:800}
+
 
 mongo:
   insert:
@@ -70,6 +114,8 @@ mongo:
 
 # 消息队列定义
 rabbitmq:
+  cancel:
+    enabled: true
   queue:
     name:
       cancelOrder: cancelOrderQueue

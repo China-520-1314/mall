@@ -1,6 +1,5 @@
 package com.macro.mall.portal.service.impl;
 
-import cn.hutool.core.util.StrUtil;
 import com.macro.mall.common.exception.Asserts;
 import com.macro.mall.mapper.UmsMemberLevelMapper;
 import com.macro.mall.mapper.UmsMemberMapper;
@@ -9,13 +8,15 @@ import com.macro.mall.model.UmsMemberExample;
 import com.macro.mall.model.UmsMemberLevel;
 import com.macro.mall.model.UmsMemberLevelExample;
 import com.macro.mall.portal.domain.MemberDetails;
+import com.macro.mall.portal.dao.UmsMemberEmailDao;
+import com.macro.mall.portal.domain.EmailCodePurpose;
+import com.macro.mall.portal.service.EmailVerificationService;
 import com.macro.mall.portal.service.UmsMemberCacheService;
 import com.macro.mall.portal.service.UmsMemberService;
 import com.macro.mall.security.util.JwtTokenUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -30,7 +31,6 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 
 /**
  * 会员管理Service实现类
@@ -49,10 +49,10 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     private UmsMemberLevelMapper memberLevelMapper;
     @Autowired
     private UmsMemberCacheService memberCacheService;
-    @Value("${redis.key.authCode}")
-    private String REDIS_KEY_PREFIX_AUTH_CODE;
-    @Value("${redis.expire.authCode}")
-    private Long AUTH_CODE_EXPIRE_SECONDS;
+    @Autowired
+    private UmsMemberEmailDao memberEmailDao;
+    @Autowired
+    private EmailVerificationService emailVerificationService;
 
     @Override
     public UmsMember getByUsername(String username) {
@@ -75,23 +75,27 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     }
 
     @Override
-    public void register(String username, String password, String telephone, String authCode) {
-        //验证验证码
-        if(!verifyAuthCode(authCode,telephone)){
-            Asserts.fail("验证码错误");
+    public void register(String password, String confirmPassword, String email, String authCode) {
+        validatePassword(password);
+        if (!password.equals(confirmPassword)) {
+            Asserts.fail("两次输入的密码不一致");
         }
+        String normalizedEmail = EmailVerificationServiceImpl.normalizeAndValidate(email);
+        String username = normalizedEmail;
         //查询是否已有该用户
         UmsMemberExample example = new UmsMemberExample();
         example.createCriteria().andUsernameEqualTo(username);
-        example.or(example.createCriteria().andPhoneEqualTo(telephone));
         List<UmsMember> umsMembers = memberMapper.selectByExample(example);
         if (!CollectionUtils.isEmpty(umsMembers)) {
-            Asserts.fail("该用户已经存在");
+            Asserts.fail("该QQ邮箱已经注册");
         }
+        if (memberEmailDao.countByEmail(normalizedEmail) > 0) {
+            Asserts.fail("该邮箱已经注册");
+        }
+        emailVerificationService.verifyCode(normalizedEmail, authCode, EmailCodePurpose.REGISTER);
         //没有该用户进行添加操作
         UmsMember umsMember = new UmsMember();
         umsMember.setUsername(username);
-        umsMember.setPhone(telephone);
         umsMember.setPassword(passwordEncoder.encode(password));
         umsMember.setCreateTime(new Date());
         umsMember.setStatus(1);
@@ -103,36 +107,36 @@ public class UmsMemberServiceImpl implements UmsMemberService {
             umsMember.setMemberLevelId(memberLevelList.get(0).getId());
         }
         memberMapper.insert(umsMember);
+        memberEmailDao.updateEmail(umsMember.getId(), normalizedEmail);
         umsMember.setPassword(null);
     }
 
     @Override
-    public String generateAuthCode(String telephone) {
-        StringBuilder sb = new StringBuilder();
-        Random random = new Random();
-        for(int i=0;i<6;i++){
-            sb.append(random.nextInt(10));
+    public void sendEmailCode(String email, EmailCodePurpose purpose) {
+        String normalizedEmail = EmailVerificationServiceImpl.normalizeAndValidate(email);
+        int registeredCount = memberEmailDao.countByEmail(normalizedEmail);
+        if (purpose == EmailCodePurpose.REGISTER && registeredCount > 0) {
+            Asserts.fail("该邮箱已经注册");
         }
-        memberCacheService.setAuthCode(telephone,sb.toString());
-        return sb.toString();
+        if (purpose == EmailCodePurpose.RESET_PASSWORD && registeredCount == 0) {
+            Asserts.fail("该邮箱尚未注册");
+        }
+        emailVerificationService.sendCode(normalizedEmail, purpose);
     }
 
     @Override
-    public void updatePassword(String telephone, String password, String authCode) {
-        UmsMemberExample example = new UmsMemberExample();
-        example.createCriteria().andPhoneEqualTo(telephone);
-        List<UmsMember> memberList = memberMapper.selectByExample(example);
-        if(CollectionUtils.isEmpty(memberList)){
-            Asserts.fail("该账号不存在");
+    public void updatePassword(String email, String password, String authCode) {
+        validatePassword(password);
+        String normalizedEmail = EmailVerificationServiceImpl.normalizeAndValidate(email);
+        Long memberId = memberEmailDao.selectMemberIdByEmail(normalizedEmail);
+        if (memberId == null) {
+            Asserts.fail("该邮箱尚未注册");
         }
-        //验证验证码
-        if(!verifyAuthCode(authCode,telephone)){
-            Asserts.fail("验证码错误");
-        }
-        UmsMember umsMember = memberList.get(0);
-        umsMember.setPassword(passwordEncoder.encode(password));
-        memberMapper.updateByPrimaryKeySelective(umsMember);
-        memberCacheService.delMember(umsMember.getId());
+        emailVerificationService.verifyCode(normalizedEmail, authCode, EmailCodePurpose.RESET_PASSWORD);
+        UmsMember member = memberMapper.selectByPrimaryKey(memberId);
+        member.setPassword(passwordEncoder.encode(password));
+        memberMapper.updateByPrimaryKeySelective(member);
+        memberCacheService.delMember(memberId);
     }
 
     @Override
@@ -162,11 +166,16 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     }
 
     @Override
-    public String login(String username, String password) {
+    public String login(String email, String password) {
         String token = null;
-        //密码需要客户端加密后传递
         try {
-            UserDetails userDetails = loadUserByUsername(username);
+            String normalizedEmail = EmailVerificationServiceImpl.normalizeAndValidate(email);
+            Long memberId = memberEmailDao.selectMemberIdByEmail(normalizedEmail);
+            UmsMember member = memberId == null ? null : memberMapper.selectByPrimaryKey(memberId);
+            if (member == null) {
+                throw new UsernameNotFoundException("QQ邮箱或密码错误");
+            }
+            UserDetails userDetails = new MemberDetails(member);
             if(!passwordEncoder.matches(password,userDetails.getPassword())){
                 throw new BadCredentialsException("密码不正确");
             }
@@ -184,13 +193,10 @@ public class UmsMemberServiceImpl implements UmsMemberService {
         return jwtTokenUtil.refreshHeadToken(token);
     }
 
-    //对输入的验证码进行校验
-    private boolean verifyAuthCode(String authCode, String telephone){
-        if(StrUtil.isEmpty(authCode)){
-            return false;
+    private void validatePassword(String password) {
+        if (password == null || !password.matches("^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,20}$")) {
+            Asserts.fail("密码须为8到20位字母和数字组合");
         }
-        String realAuthCode = memberCacheService.getAuthCode(telephone);
-        return authCode.equals(realAuthCode);
     }
 
 }

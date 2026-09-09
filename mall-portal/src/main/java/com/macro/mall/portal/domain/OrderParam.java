@@ -23,4 +23,10 @@ public class OrderParam {
     private Integer payType;
     @Schema(title = "被选中的购物车商品ID")
     private List<Long> cartIds;
+    @Schema(title = "立即购买商品ID")
+    private Long buyNowProductId;
+    @Schema(title = "立即购买SKU ID")
+    private Long buyNowSkuId;
+    @Schema(title = "立即购买数量")
+    private Integer buyNowQuantity;
 }

@@ -171,6 +171,14 @@ public class UmsMemberCouponServiceImpl implements UmsMemberCouponService {
 
     @Override
     public List<SmsCoupon> listByProduct(Long productId) {
+        if (productId == null) {
+            return new ArrayList<>();
+        }
+        PmsProduct product = productMapper.selectByPrimaryKey(productId);
+        if (product == null || !Integer.valueOf(0).equals(product.getDeleteStatus())
+                || !Integer.valueOf(1).equals(product.getPublishStatus())) {
+            return new ArrayList<>();
+        }
         List<Long> allCouponIds = new ArrayList<>();
         //获取指定商品优惠券
         SmsCouponProductRelationExample cprExample = new SmsCouponProductRelationExample();
@@ -181,7 +189,6 @@ public class UmsMemberCouponServiceImpl implements UmsMemberCouponService {
             allCouponIds.addAll(couponIds);
         }
         //获取指定分类优惠券
-        PmsProduct product = productMapper.selectByPrimaryKey(productId);
         SmsCouponProductCategoryRelationExample cpcrExample = new SmsCouponProductCategoryRelationExample();
         cpcrExample.createCriteria().andProductCategoryIdEqualTo(product.getProductCategoryId());
         List<SmsCouponProductCategoryRelation> cpcrList = couponProductCategoryRelationMapper.selectByExample(cpcrExample);

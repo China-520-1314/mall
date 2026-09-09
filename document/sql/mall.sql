@@ -922,6 +922,9 @@ DROP TABLE IF EXISTS `pms_comment`;
 CREATE TABLE `pms_comment`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `product_id` bigint(20) NULL DEFAULT NULL,
+  `member_id` bigint(20) NULL DEFAULT NULL COMMENT '评价会员ID',
+  `order_id` bigint(20) NULL DEFAULT NULL COMMENT '来源订单ID',
+  `order_item_id` bigint(20) NULL DEFAULT NULL COMMENT '来源订单项ID',
   `member_nick_name` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
   `product_name` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
   `star` int(3) NULL DEFAULT NULL COMMENT '评价星数：0->5',
@@ -935,7 +938,10 @@ CREATE TABLE `pms_comment`  (
   `pics` varchar(1000) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '上传图片地址，以逗号隔开',
   `member_icon` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '评论用户头像',
   `replay_count` int(11) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_order_item_id`(`order_item_id`) USING BTREE,
+  INDEX `idx_member_id`(`member_id`) USING BTREE,
+  INDEX `idx_order_id`(`order_id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8 COLLATE = utf8_general_ci COMMENT = '商品评价表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
@@ -2715,7 +2721,7 @@ CREATE TABLE `ums_member`  (
   `username` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '用户名',
   `password` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '密码',
   `nickname` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '昵称',
-  `phone` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '手机号码',
+  `phone` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '历史账号手机号，新注册账号不再使用',
   `status` int(1) NULL DEFAULT NULL COMMENT '帐号启用状态:0->禁用；1->启用',
   `create_time` datetime NULL DEFAULT NULL COMMENT '注册时间',
   `icon` varchar(500) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '头像',
@@ -2747,6 +2753,11 @@ INSERT INTO `ums_member` VALUES (8, 4, 'shari', '$2a$10$NZ5o7r2E.ayT2ZoxgjlI.eJ6
 INSERT INTO `ums_member` VALUES (9, 4, 'aewen', '$2a$10$NZ5o7r2E.ayT2ZoxgjlI.eJ6OEYqjH7INR/F.mXDbjZJi9HF0YCVG', 'aewen', '18061581843', 1, '2018-11-12 14:22:55', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 INSERT INTO `ums_member` VALUES (10, 4, 'guest', '$2a$10$WQiD4RzEs1iJVWU.2HVu8OdSlExJHWKmwndaw3SUfMyqfKZmXe1vq', NULL, '18911111111', 1, '2020-03-14 14:52:18', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 INSERT INTO `ums_member` VALUES (11, 4, 'member', '$2a$10$Q08uzqvtPj61NnpYQZsVvOnyilJ3AU4VdngAcJFGvPhEeqhhC.hhS', 'member', '18961511111', 1, '2023-05-11 15:22:38', 'https://macro-oss.oss-cn-shenzhen.aliyuncs.com/mall/icon/github_icon_02.png', 1, '2009-06-01', '上海', '学生', 'member', NULL, 5000, 1000, NULL, NULL);
+
+-- 邮箱登录字段在会员种子数据导入后再增加，避免旧版 19 列 INSERT 因列数不匹配而失败。
+ALTER TABLE `ums_member`
+  ADD COLUMN `email` varchar(100) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '验证邮箱' AFTER `phone`,
+  ADD UNIQUE INDEX `idx_email`(`email`) USING BTREE;
 
 -- ----------------------------
 -- Table structure for ums_member_level

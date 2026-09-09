@@ -43,7 +43,7 @@ public class MemberCollectionServiceImpl implements MemberCollectionService {
         if (findCollection == null) {
             if (sqlEnable) {
                 PmsProduct product = productMapper.selectByPrimaryKey(productCollection.getProductId());
-                if (product == null || product.getDeleteStatus() == 1) {
+                if (product == null || product.getDeleteStatus() == 1 || product.getPublishStatus() != 1) {
                     return 0;
                 }
                 productCollection.setProductName(product.getName());

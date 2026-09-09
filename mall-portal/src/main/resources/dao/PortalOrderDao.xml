@@ -44,6 +44,7 @@
             LEFT JOIN oms_order_item ot ON o.id = ot.order_id
         WHERE
             o.status = 0
+            AND o.delete_status = 0
             AND o.create_time &lt; date_add(NOW(), INTERVAL -#{minute} MINUTE);
     </select>
 
@@ -65,11 +66,16 @@
         <foreach collection="itemList" item="item" separator="," open="(" close=")">
             #{item.productSkuId}
         </foreach>
+        AND stock >= CASE id
+        <foreach collection="itemList" item="item">
+            WHEN #{item.productSkuId} THEN #{item.productQuantity}
+        </foreach>
+        END
     </update>
     <update id="updateOrderStatus">
         update oms_order
         set status=#{status}
-        where id in
+        where status = 0 and delete_status = 0 and id in
         <foreach collection="ids" item="id" separator="," open="(" close=")">
             #{id}
         </foreach>

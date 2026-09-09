@@ -19,6 +19,9 @@ public interface OmsPortalOrderService {
      */
     ConfirmOrderResult generateConfirmOrder(List<Long> cartIds);
 
+    /** 根据单个商品和 SKU 生成立即购买确认单。 */
+    ConfirmOrderResult generateBuyNowConfirmOrder(OrderParam orderParam);
+
     /**
      * 根据提交信息生成订单
      */
@@ -42,6 +45,12 @@ public interface OmsPortalOrderService {
      */
     @Transactional
     void cancelOrder(Long orderId);
+
+    /**
+     * 当前用户取消自己的未支付订单
+     */
+    @Transactional
+    void cancelUserOrder(Long orderId);
 
     /**
      * 发送延迟消息取消订单

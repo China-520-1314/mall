@@ -3,6 +3,11 @@ package com.macro.mall.portal.assistant;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/**
+ * 词元神模型服务配置。
+ *
+ * API Key 只允许通过环境变量注入，不写入前端或代码仓库。
+ */
 @Component
 @ConfigurationProperties(prefix = "ciyuanshen")
 public class AssistantProperties {
@@ -38,6 +43,9 @@ public class AssistantProperties {
         this.textApiKey = textApiKey;
     }
 
+    /**
+     * 文字客服优先使用专用 Key，兼容已有的通用词元神 Key 配置。
+     */
     public String getEffectiveApiKey() {
         return textApiKey != null && !textApiKey.isBlank() ? textApiKey : apiKey;
     }
@@ -75,6 +83,7 @@ public class AssistantProperties {
     }
 
     public boolean isConfigured() {
-        return getEffectiveApiKey() != null && !getEffectiveApiKey().isBlank();
+        String effectiveApiKey = getEffectiveApiKey();
+        return effectiveApiKey != null && !effectiveApiKey.isBlank();
     }
 }

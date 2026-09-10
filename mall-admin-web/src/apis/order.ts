@@ -95,3 +95,12 @@ export function orderUpdateNoteAPI(params: { id: number; note: string; status: n
     params: params,
   })
 }
+
+/** 向订单所属会员发送站内信 */
+export function sendOrderMessageAPI(id: number, data: { title: string; content: string }) {
+  return http({
+    url: `/order/${id}/message`,
+    method: 'post',
+    data,
+  })
+}

@@ -5,6 +5,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
+import java.util.List;
+
 /**
  * 会员商品收藏Repository
  * Created by macro on 2018/8/2.
@@ -24,6 +26,8 @@ public interface MemberProductCollectionRepository extends MongoRepository<Membe
      * 根据会员ID分页查询记录
      */
     Page<MemberProductCollection> findByMemberId(Long memberId, Pageable pageable);
+
+    List<MemberProductCollection> findTop30ByMemberIdOrderByCreateTimeDesc(Long memberId);
 
     /**
      * 根据会员ID删除记录

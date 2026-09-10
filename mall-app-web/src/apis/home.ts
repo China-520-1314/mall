@@ -15,8 +15,8 @@ export const getHomeContentAPI = () => {
 export const getRecommendProductListAPI = (params?: PageParam) => {
   return http<PmsProduct[]>({
     method: 'GET',
-    url: '/home/recommendProductList',
-    data: params,
+    url: '/home/personalizedProductList',
+    params,
   })
 }
 

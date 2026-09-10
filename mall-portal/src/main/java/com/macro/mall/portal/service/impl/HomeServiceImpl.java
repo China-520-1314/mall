@@ -7,6 +7,10 @@ import com.macro.mall.portal.dao.HomeDao;
 import com.macro.mall.portal.domain.FlashPromotionProduct;
 import com.macro.mall.portal.domain.HomeContentResult;
 import com.macro.mall.portal.domain.HomeFlashPromotion;
+import com.macro.mall.portal.domain.MemberProductCollection;
+import com.macro.mall.portal.domain.MemberReadHistory;
+import com.macro.mall.portal.repository.MemberProductCollectionRepository;
+import com.macro.mall.portal.repository.MemberReadHistoryRepository;
 import com.macro.mall.portal.service.HomeService;
 import com.macro.mall.portal.util.DateUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 首页内容管理Service实现类
@@ -36,6 +44,10 @@ public class HomeServiceImpl implements HomeService {
     private PmsProductCategoryMapper productCategoryMapper;
     @Autowired
     private CmsSubjectMapper subjectMapper;
+    @Autowired
+    private MemberReadHistoryRepository readHistoryRepository;
+    @Autowired
+    private MemberProductCollectionRepository collectionRepository;
 
     @Override
     public HomeContentResult content() {
@@ -64,6 +76,79 @@ public class HomeServiceImpl implements HomeService {
                 .andDeleteStatusEqualTo(0)
                 .andPublishStatusEqualTo(1);
         return productMapper.selectByExample(example);
+    }
+
+    @Override
+    public List<PmsProduct> personalizedProductList(Long memberId, Integer pageSize, Integer pageNum) {
+        int safePageSize = pageSize == null ? 8 : Math.min(Math.max(pageSize, 1), 40);
+        int safePageNum = pageNum == null ? 1 : Math.max(pageNum, 1);
+
+        PmsProductExample example = new PmsProductExample();
+        example.createCriteria().andDeleteStatusEqualTo(0).andPublishStatusEqualTo(1);
+        List<PmsProduct> products = productMapper.selectByExample(example);
+        if (products.isEmpty()) {
+            return products;
+        }
+
+        // 未登录用户使用可解释、稳定的热门+新品兜底推荐。
+        if (memberId == null) {
+            products.sort(Comparator.comparing(PmsProduct::getSale, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(PmsProduct::getId));
+            return slice(products, safePageNum, safePageSize);
+        }
+
+        Map<Long, Integer> categoryWeights = new HashMap<>();
+        Map<Long, Integer> brandWeights = new HashMap<>();
+        for (MemberReadHistory history : readHistoryRepository.findTop30ByMemberIdOrderByCreateTimeDesc(memberId)) {
+            addPreference(history == null ? null : history.getProductId(), 2, categoryWeights, brandWeights);
+        }
+        for (MemberProductCollection collection : collectionRepository.findTop30ByMemberIdOrderByCreateTimeDesc(memberId)) {
+            addPreference(collection == null ? null : collection.getProductId(), 5, categoryWeights, brandWeights);
+        }
+
+        // 没有行为数据时直接给新用户返回热门商品。
+        if (categoryWeights.isEmpty() && brandWeights.isEmpty()) {
+            products.sort(Comparator.comparing(PmsProduct::getSale, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(PmsProduct::getId));
+            return slice(products, safePageNum, safePageSize);
+        }
+
+        products.sort(Comparator.comparingDouble((PmsProduct product) -> recommendationScore(product, categoryWeights, brandWeights))
+                .reversed()
+                .thenComparing(PmsProduct::getId));
+        return slice(products, safePageNum, safePageSize);
+    }
+
+    private void addPreference(Long productId, int weight,
+                               Map<Long, Integer> categoryWeights, Map<Long, Integer> brandWeights) {
+        if (productId == null) {
+            return;
+        }
+        PmsProduct product = productMapper.selectByPrimaryKey(productId);
+        if (product == null) {
+            return;
+        }
+        if (product.getProductCategoryId() != null) {
+            categoryWeights.merge(product.getProductCategoryId(), weight, Integer::sum);
+        }
+        if (product.getBrandId() != null) {
+            brandWeights.merge(product.getBrandId(), weight, Integer::sum);
+        }
+    }
+
+    private double recommendationScore(PmsProduct product, Map<Long, Integer> categoryWeights,
+                                        Map<Long, Integer> brandWeights) {
+        double score = 0;
+        score += categoryWeights.getOrDefault(product.getProductCategoryId(), 0) * 10D;
+        score += brandWeights.getOrDefault(product.getBrandId(), 0) * 6D;
+        score += product.getSale() == null ? 0 : Math.min(product.getSale(), 10000) * 0.01D;
+        return score;
+    }
+
+    private List<PmsProduct> slice(List<PmsProduct> products, int pageNum, int pageSize) {
+        int from = Math.min((pageNum - 1) * pageSize, products.size());
+        int to = Math.min(from + pageSize, products.size());
+        return new ArrayList<>(products.subList(from, to));
     }
 
     @Override

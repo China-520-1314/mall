@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -23,6 +24,8 @@ import java.util.List;
 public class OmsOrderController {
     @Autowired
     private OmsOrderService orderService;
+    @Autowired
+    private com.macro.mall.service.UmsMemberMessageService memberMessageService;
 
     @Operation(summary = "查询订单")
     @RequestMapping(value = "/list", method = RequestMethod.GET)
@@ -108,5 +111,14 @@ public class OmsOrderController {
             return CommonResult.success(count);
         }
         return CommonResult.failed();
+    }
+
+    @Operation(summary = "向订单用户发送站内信")
+    @RequestMapping(value = "/{id}/message", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult sendMessage(@PathVariable Long id,
+                                    @RequestBody @Valid UmsMemberMessageParam param) {
+        int count = memberMessageService.sendToOrderMember(id, param);
+        return count > 0 ? CommonResult.success(count, "站内信发送成功") : CommonResult.failed();
     }
 }

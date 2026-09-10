@@ -166,12 +166,12 @@
       </view>
     </view>
 
-    <!-- 猜你喜欢 -->
+    <!-- 个性化推荐 -->
     <view class="f-header m-t">
       <image src="/static/icon_recommend_product.png"></image>
       <view class="tit-box">
-        <text class="tit">猜你喜欢</text>
-        <text class="tit2">你喜欢的都在这里了</text>
+        <text class="tit">为你推荐</text>
+        <text class="tit2">根据浏览和收藏智能匹配</text>
       </view>
       <text class="yticon icon-you" v-show="false"></text>
     </view>
@@ -237,9 +237,9 @@ const homeFlashPromotion = ref<HomeFlashPromotion | null>(null)
 const newProductList = ref<PmsProduct[]>([])
 // 人气推荐
 const hotProductList = ref<PmsProduct[]>([])
-// 猜你喜欢
+// 个性化推荐
 const recommendProductList = ref<PmsProduct[]>([])
-// 猜你喜欢分页参数
+// 个性化推荐分页参数
 const recommendPageParam = ref<PageParam>({
   pageNum: 1,
   pageSize: 4,

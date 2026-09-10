@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type CascaderOption } from 'element-plus'
 import { Warning } from '@element-plus/icons-vue'
-import { getOrderDetailByIdAPI, orderUpdateReceiverInfoAPI, orderUpdateMoneyInfoAPI, orderUpdateCloseAPI, orderUpdateNoteAPI, orderDeleteByIdsAPI } from '@/apis/order'
+import { getOrderDetailByIdAPI, orderUpdateReceiverInfoAPI, orderUpdateMoneyInfoAPI, orderUpdateCloseAPI, orderUpdateNoteAPI, orderDeleteByIdsAPI, sendOrderMessageAPI } from '@/apis/order'
 import LogisticsDialog from '@/views/oms/order/components/logisticsDialog.vue'
 import type { OmsOrder, OmsOrderDetail, OmsReceiverInfoParam } from '@/types/order'
 import { formatDateTime } from '@/utils/datetime'
@@ -266,17 +266,21 @@ const showMessageDialog = () => {
 
 // 处理发送站内信
 const handleSendMessage = async () => {
+  if (!message.value.title.trim() || !message.value.content.trim()) {
+    ElMessage.warning('请填写消息标题和内容')
+    return
+  }
   await ElMessageBox.confirm('是否要发送站内信?', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   })
-  console.log('站内信功能暂未实现，模拟发送。。。')
-  messageDialogVisible.value = false
-  ElMessage({
-    type: 'success',
-    message: '发送成功!'
+  await sendOrderMessageAPI(id.value!, {
+    title: message.value.title.trim(),
+    content: message.value.content.trim(),
   })
+  messageDialogVisible.value = false
+  ElMessage.success('站内信发送成功，用户可在消息通知中查看')
 }
 
 // 显示关闭订单对话框

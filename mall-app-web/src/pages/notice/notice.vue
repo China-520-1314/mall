@@ -1,151 +1,62 @@
 <template>
-  <view>
-    <view class="notice-item">
-      <text class="time">11:30</text>
-      <view class="content">
-        <text class="title">新品上市，全场满199减50</text>
-        <view class="img-wrapper">
-          <image
-            class="pic"
-            src="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1556465765776&di=57bb5ff70dc4f67dcdb856e5d123c9e7&imgtype=0&src=http%3A%2F%2Fimg.zcool.cn%2Fcommunity%2F01fd015aa4d95fa801206d96069229.jpg%401280w_1l_2o_100sh.jpg"
-          ></image>
-        </view>
-        <text class="introduce">
-          虽然做了一件好事，但很有可能因此招来他人的无端猜测，例如被质疑是否藏有其他利己动机等，乃至谴责。即便如此，还是要做好事。
-        </text>
-        <view class="bot b-t">
-          <text>查看详情</text>
-          <text class="more-icon yticon icon-you"></text>
-        </view>
+  <view class="page">
+    <view v-if="loading" class="empty">正在加载消息...</view>
+    <view v-else-if="messages.length === 0" class="empty">暂无站内信</view>
+    <view v-for="item in messages" :key="item.id" class="message-card" :class="{ unread: item.readStatus === 0 }" @click="openMessage(item)">
+      <view class="message-head">
+        <text class="title">{{ item.title }}</text>
+        <text v-if="item.readStatus === 0" class="badge">未读</text>
       </view>
-    </view>
-    <view class="notice-item">
-      <text class="time">昨天 12:30</text>
-      <view class="content">
-        <text class="title">新品上市，全场满199减50</text>
-        <view class="img-wrapper">
-          <image
-            class="pic"
-            src="https://ss1.bdstatic.com/70cFvXSh_Q1YnxGkpoWK1HF6hhy/it/u=3761064275,227090144&fm=26&gp=0.jpg"
-          ></image>
-          <view class="cover">活动结束</view>
-        </view>
-        <view class="bot b-t">
-          <text>查看详情</text>
-          <text class="more-icon yticon icon-you"></text>
-        </view>
-      </view>
-    </view>
-    <view class="notice-item">
-      <text class="time">2019-07-26 12:30</text>
-      <view class="content">
-        <text class="title">新品上市，全场满199减50</text>
-        <view class="img-wrapper">
-          <image
-            class="pic"
-            src="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1556465765776&di=57bb5ff70dc4f67dcdb856e5d123c9e7&imgtype=0&src=http%3A%2F%2Fimg.zcool.cn%2Fcommunity%2F01fd015aa4d95fa801206d96069229.jpg%401280w_1l_2o_100sh.jpg"
-          ></image>
-          <view class="cover">活动结束</view>
-        </view>
-        <text class="introduce">
-          新品上市全场2折起，新品上市全场2折起，新品上市全场2折起，新品上市全场2折起，新品上市全场2折起
-        </text>
-        <view class="bot b-t">
-          <text>查看详情</text>
-          <text class="more-icon yticon icon-you"></text>
-        </view>
-      </view>
+      <text class="time">{{ formatTime(item.createTime) }}</text>
+      <text class="content">{{ item.content }}</text>
+      <text v-if="item.orderId" class="order">关联订单：{{ item.orderId }}</text>
     </view>
   </view>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app'
+import { ref } from 'vue'
+import { getMemberMessageListAPI, markMemberMessageReadAPI, type MemberMessage } from '@/apis/memberMessage'
+import { formatDate } from '@/utils/date'
 
-<style lang="scss">
-page {
-  background-color: #f7f7f7;
-  padding-bottom: 30rpx;
+const messages = ref<MemberMessage[]>([])
+const loading = ref(false)
+
+const formatTime = (value: string) => {
+  if (!value) return ''
+  return formatDate(new Date(value), 'yyyy-MM-dd hh:mm')
 }
-</style>
+
+const loadMessages = async () => {
+  loading.value = true
+  try {
+    const res = await getMemberMessageListAPI({ pageNum: 1, pageSize: 50 })
+    messages.value = res.data?.list || []
+  } finally {
+    loading.value = false
+  }
+}
+
+const openMessage = async (message: MemberMessage) => {
+  if (message.readStatus === 0) {
+    await markMemberMessageReadAPI(message.id)
+    message.readStatus = 1
+  }
+}
+
+onShow(loadMessages)
+</script>
 
 <style lang="scss" scoped>
-.notice-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.time {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 80rpx;
-  padding-top: 10rpx;
-  font-size: 26rpx;
-  color: #7d7d7d;
-}
-
-.content {
-  width: 710rpx;
-  padding: 0 24rpx;
-  background-color: #fff;
-  border-radius: 4rpx;
-}
-
-.title {
-  display: flex;
-  align-items: center;
-  height: 90rpx;
-  font-size: 32rpx;
-  color: #303133;
-}
-
-.img-wrapper {
-  width: 100%;
-  height: 260rpx;
-  position: relative;
-}
-
-.pic {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 6rpx;
-}
-
-.cover {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  font-size: 36rpx;
-  color: #fff;
-}
-
-.introduce {
-  display: inline-block;
-  padding: 16rpx 0;
-  font-size: 28rpx;
-  color: #606266;
-  line-height: 38rpx;
-}
-
-.bot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 80rpx;
-  font-size: 24rpx;
-  color: #707070;
-  position: relative;
-}
-
-.more-icon {
-  font-size: 32rpx;
-}
+page { background: #f7f7f7; }
+.page { min-height: 100vh; padding: 24rpx; }
+.empty { padding: 160rpx 0; color: #909399; text-align: center; font-size: 28rpx; }
+.message-card { margin-bottom: 20rpx; padding: 24rpx; border-radius: 14rpx; background: #fff; box-shadow: 0 4rpx 18rpx rgba(30, 36, 50, .04); }
+.message-card.unread { border-left: 6rpx solid #fa436a; }
+.message-head { display: flex; align-items: center; justify-content: space-between; }
+.title { color: #303133; font-size: 30rpx; font-weight: 600; }
+.badge { padding: 4rpx 10rpx; border-radius: 16rpx; background: #fff0f3; color: #fa436a; font-size: 20rpx; }
+.time, .order { display: block; margin-top: 10rpx; color: #909399; font-size: 22rpx; }
+.content { display: block; margin-top: 18rpx; color: #606266; font-size: 26rpx; line-height: 1.6; }
 </style>

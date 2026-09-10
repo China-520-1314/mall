@@ -385,6 +385,14 @@ const favorite = ref(false)
 // 分享
 const shareList = ref<ShareItem[]>([])
 
+const getShareUrl = () => {
+  const productId = product.value.id
+  if (typeof window !== 'undefined' && window.location) {
+    return `${window.location.origin}${window.location.pathname}#/pages/product/product?id=${productId}`
+  }
+  return `/pages/product/product?id=${productId}`
+}
+
 // 会员状态
 const memberStore = useMemberStore()
 
@@ -773,11 +781,26 @@ const handleAddCoupon = async (coupon: SmsCoupon) => {
   }
 }
 
-// 分享
-const handleShare = () => {
-  uni.showToast({
-    title: '分享功能待实现',
-    icon: 'none',
+// 分享：H5 优先调用系统分享，其他端复制可打开的商品链接。
+const handleShare = async () => {
+  if (!product.value.id) return
+  const url = getShareUrl()
+  const title = product.value.name || 'Mall商品'
+  const shareNavigator = typeof navigator !== 'undefined' ? (navigator as Navigator & {
+    share?: (data: { title: string; text: string; url: string }) => Promise<void>
+  }) : undefined
+  if (shareNavigator?.share) {
+    try {
+      await shareNavigator.share({ title, text: product.value.subTitle || title, url })
+      return
+    } catch (error) {
+      // 用户取消系统分享时不提示错误，其他异常继续走复制链接兜底。
+      if ((error as { name?: string })?.name === 'AbortError') return
+    }
+  }
+  uni.setClipboardData({
+    data: `${title}\n${url}`,
+    success: () => uni.showToast({ title: '商品链接已复制', icon: 'success' }),
   })
 }
 

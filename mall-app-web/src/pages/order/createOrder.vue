@@ -182,10 +182,22 @@ const cartIds = ref<number[]>([])
 const buyNowProductId = ref<number | null>(null)
 const buyNowSkuId = ref<number | null>(null)
 const buyNowQuantity = ref(1)
+let confirmOrderLoading = false
+let loginPageOpened = false
+
+const hasOrderSource = () => buyNowProductId.value != null || cartIds.value.length > 0
+
+const openLoginPage = () => {
+  if (loginPageOpened) return
+  loginPageOpened = true
+  uni.navigateTo({ url: '/pages/public/login' })
+}
 
 // ===== 加载数据 =====
 // 生成确认单信息
 const loadData = async () => {
+  if (confirmOrderLoading || !hasOrderSource()) return
+  confirmOrderLoading = true
   try {
     const res = buyNowProductId.value && buyNowSkuId.value
       ? await generateBuyNowConfirmOrderAPI({
@@ -207,6 +219,8 @@ const loadData = async () => {
     memberIntegration.value = data.memberIntegration
   } catch (e) {
     console.error('加载确认单失败', e)
+  } finally {
+    confirmOrderLoading = false
   }
 }
 
@@ -222,6 +236,14 @@ const addressSelectedFromPage = ref(false)
 
 // 页面显示时刷新数据（从地址页面返回时触发）
 onShow(() => {
+  if (!uni.getStorageSync('token')) {
+    openLoginPage()
+    return
+  }
+  loginPageOpened = false
+  if (cartPromotionItemList.value.length === 0) {
+    void loadData()
+  }
   if (addressSelectedFromPage.value) {
     // 从地址页选择了地址，不覆盖
     addressSelectedFromPage.value = false
@@ -242,10 +264,8 @@ onLoad((option) => {
     buyNowProductId.value = Number(option.buyNowProductId)
     buyNowSkuId.value = Number(option.buyNowSkuId)
     buyNowQuantity.value = Math.max(1, Number(option.buyNowQuantity || 1))
-    loadData()
   } else if (option?.cartIds) {
     cartIds.value = JSON.parse(option.cartIds)
-    loadData()
   }
 })
 
@@ -281,22 +301,8 @@ const handleSubmit = async () => {
   try {
     const res = await generateOrderAPI(orderParam)
     const orderId = res.data.order.id
-    uni.showModal({
-      title: '提示',
-      content: '订单创建成功，是否要立即支付？',
-      confirmText: '去支付',
-      cancelText: '取消',
-      success: function (res) {
-        if (res.confirm) {
-          uni.redirectTo({
-            url: `/pages/money/pay?orderId=${orderId}`,
-          })
-        } else if (res.cancel) {
-          uni.redirectTo({
-            url: '/pages/order/order?state=0',
-          })
-        }
-      },
+    uni.redirectTo({
+      url: `/pages/money/pay?orderId=${orderId}`,
     })
   } catch (e) {
     console.error('提交订单失败', e)

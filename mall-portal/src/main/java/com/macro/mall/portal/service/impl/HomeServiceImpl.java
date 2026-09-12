@@ -15,6 +15,9 @@ import com.macro.mall.portal.service.HomeService;
 import com.macro.mall.portal.util.DateUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Date;
@@ -30,6 +33,7 @@ import java.util.Map;
  */
 @Service
 public class HomeServiceImpl implements HomeService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(HomeServiceImpl.class);
     @Autowired
     private SmsHomeAdvertiseMapper advertiseMapper;
     @Autowired
@@ -99,11 +103,25 @@ public class HomeServiceImpl implements HomeService {
 
         Map<Long, Integer> categoryWeights = new HashMap<>();
         Map<Long, Integer> brandWeights = new HashMap<>();
-        for (MemberReadHistory history : readHistoryRepository.findTop30ByMemberIdOrderByCreateTimeDesc(memberId)) {
-            addPreference(history == null ? null : history.getProductId(), 2, categoryWeights, brandWeights);
+        Map<Long, PmsProduct> candidateById = new HashMap<>();
+        for (PmsProduct product : products) {
+            candidateById.put(product.getId(), product);
         }
-        for (MemberProductCollection collection : collectionRepository.findTop30ByMemberIdOrderByCreateTimeDesc(memberId)) {
-            addPreference(collection == null ? null : collection.getProductId(), 5, categoryWeights, brandWeights);
+        for (Long productId : homeDao.getCartPreferenceProductIds(memberId)) {
+            addPreference(candidateById.get(productId), 4, categoryWeights, brandWeights);
+        }
+        for (Long productId : homeDao.getPurchasedPreferenceProductIds(memberId)) {
+            addPreference(candidateById.get(productId), 8, categoryWeights, brandWeights);
+        }
+        try {
+            for (MemberReadHistory history : readHistoryRepository.findTop30ByMemberIdOrderByCreateTimeDesc(memberId)) {
+                addPreference(history == null ? null : candidateById.get(history.getProductId()), 2, categoryWeights, brandWeights);
+            }
+            for (MemberProductCollection collection : collectionRepository.findTop30ByMemberIdOrderByCreateTimeDesc(memberId)) {
+                addPreference(collection == null ? null : candidateById.get(collection.getProductId()), 5, categoryWeights, brandWeights);
+            }
+        } catch (DataAccessResourceFailureException exception) {
+            LOGGER.debug("浏览收藏存储暂不可用，使用购物车与订单偏好推荐");
         }
 
         // 没有行为数据时直接给新用户返回热门商品。
@@ -119,12 +137,8 @@ public class HomeServiceImpl implements HomeService {
         return slice(products, safePageNum, safePageSize);
     }
 
-    private void addPreference(Long productId, int weight,
+    private void addPreference(PmsProduct product, int weight,
                                Map<Long, Integer> categoryWeights, Map<Long, Integer> brandWeights) {
-        if (productId == null) {
-            return;
-        }
-        PmsProduct product = productMapper.selectByPrimaryKey(productId);
         if (product == null) {
             return;
         }

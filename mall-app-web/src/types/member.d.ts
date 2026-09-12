@@ -53,3 +53,10 @@ export type ResetPasswordParam = {
 
 /** 邮箱验证码使用场景 */
 export type EmailCodePurpose = 'REGISTER' | 'RESET_PASSWORD'
+
+/** 服务端确认发送后的有效期和重新发送间隔（秒）。 */
+export type EmailCodeSendResult = {
+  email: string
+  cooldownSeconds: number
+  expiresIn: number
+}

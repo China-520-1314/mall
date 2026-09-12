@@ -47,14 +47,17 @@ secure:
       - /favicon.ico
       - /actuator/**
       - /druid/**
+      - /error
       - /sso/**
       - /home/**
       - /product/search
       - /product/categoryTreeList
       - /product/detail/**
       - /product/*/comments
+      - /product/comments/*/replies # 回复可公开查看；POST接口仍校验登录身份
       - /product/*/commentSummary
       - /uploads/comments/**
+      - /catalog/**
       - /assistant/chat
       - /brand/**
       - /alipay/**

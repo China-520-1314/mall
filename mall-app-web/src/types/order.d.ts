@@ -243,6 +243,8 @@ export type OmsOrderDetail = {
   note: string
   /** 提交时间 */
   createTime: string
+  /** 待付款截止时间 */
+  paymentExpireTime?: string | null
   /** 支付时间 */
   paymentTime: string
   /** 发货时间 */

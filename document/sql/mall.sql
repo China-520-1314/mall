@@ -845,7 +845,7 @@ CREATE TABLE `oms_order_setting`  (
 -- ----------------------------
 -- Records of oms_order_setting
 -- ----------------------------
-INSERT INTO `oms_order_setting` VALUES (1, 60, 120, 15, 7, 7);
+INSERT INTO `oms_order_setting` VALUES (1, 60, 30, 15, 7, 7);
 
 -- ----------------------------
 -- Table structure for pms_album
@@ -955,17 +955,35 @@ DROP TABLE IF EXISTS `pms_comment_replay`;
 CREATE TABLE `pms_comment_replay`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `comment_id` bigint(20) NULL DEFAULT NULL,
+  `member_id` bigint(20) NULL DEFAULT NULL COMMENT '回复作者会员ID',
   `member_nick_name` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
   `member_icon` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
   `content` varchar(1000) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
   `create_time` datetime NULL DEFAULT NULL,
   `type` int(1) NULL DEFAULT NULL COMMENT '评论人员类型；0->会员；1->管理员',
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_comment_replay_member`(`member_id`) USING BTREE,
+  INDEX `idx_comment_replay_comment`(`comment_id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8 COLLATE = utf8_general_ci COMMENT = '产品评价回复表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of pms_comment_replay
 -- ----------------------------
+
+-- ----------------------------
+-- Table structure for pms_comment_like
+-- ----------------------------
+DROP TABLE IF EXISTS `pms_comment_like`;
+CREATE TABLE `pms_comment_like` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `comment_id` bigint NOT NULL,
+  `member_id` bigint NOT NULL,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_comment_member` (`comment_id`,`member_id`),
+  KEY `idx_like_comment` (`comment_id`),
+  KEY `idx_like_member` (`member_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='商品评价点赞记录';
 
 -- ----------------------------
 -- Table structure for pms_feight_template

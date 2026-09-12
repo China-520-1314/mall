@@ -9,6 +9,9 @@ public class PmsComment implements Serializable {
 
     private Long productId;
 
+    /** 评价作者会员ID，用于鉴权删除。 */
+    private Long memberId;
+
     private String memberNickName;
 
     private String productName;
@@ -56,6 +59,14 @@ public class PmsComment implements Serializable {
 
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Long getMemberId() {
+        return memberId;
+    }
+
+    public void setMemberId(Long memberId) {
+        this.memberId = memberId;
     }
 
     public String getMemberNickName() {

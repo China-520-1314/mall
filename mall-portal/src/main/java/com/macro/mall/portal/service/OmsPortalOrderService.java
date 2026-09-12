@@ -47,7 +47,7 @@ public interface OmsPortalOrderService {
     void cancelOrder(Long orderId);
 
     /**
-     * 当前用户取消自己的未支付订单
+     * 当前用户取消自己的待付款或待发货订单
      */
     @Transactional
     void cancelUserOrder(Long orderId);

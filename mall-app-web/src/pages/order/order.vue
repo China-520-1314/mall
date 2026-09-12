@@ -19,7 +19,7 @@
       @change="handleSwiperChange"
     >
       <swiper-item v-for="(tabItem, tabIndex) in navList" :key="tabIndex" class="tab-content">
-        <scroll-view class="list-scroll-content" scroll-y @scrolltolower="loadData('add')">
+        <scroll-view v-if="tabIndex === tabCurrentIndex" class="list-scroll-content" scroll-y @scrolltolower="loadData('add')">
           <!-- 空白页 -->
           <empty v-if="orderList == null || orderList.length === 0"></empty>
 
@@ -59,12 +59,18 @@
               件商品 实付款
               <text class="price">{{ item.payAmount }}</text>
             </view>
+            <view v-if="item.status === 0" class="payment-deadline">
+              请在 {{ getCountdown(item.paymentExpireTime) }} 内付款，超时订单自动取消
+            </view>
             <view v-if="item.status === 0" class="action-box b-t">
               <button class="action-btn" @click="handleCancelOrder(item.id)">取消订单</button>
               <button class="action-btn recom" @click="handlePayOrder(item.id)">立即付款</button>
             </view>
+            <view v-if="item.status === 1" class="action-box b-t">
+              <button class="action-btn" @click="handleCancelOrder(item.id)">取消订单</button>
+              <button class="action-btn recom" @click="handleReceiveOrder(item.id)">确认收货</button>
+            </view>
             <view v-if="item.status === 2" class="action-box b-t">
-              <button class="action-btn">查看物流</button>
               <button class="action-btn recom" @click="handleReceiveOrder(item.id)">
                 确认收货
               </button>
@@ -84,8 +90,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app'
+import { onLoad, onShow, onPullDownRefresh, onUnload } from '@dcloudio/uni-app'
 import { formatDate } from '@/utils/date'
+import { formatPaymentCountdown, getPaymentRemainingSeconds } from '@/utils/orderPayment'
 import {
   getOrderListAPI,
   cancelUserOrderAPI,
@@ -118,50 +125,33 @@ const searchParam = ref<PageParam & { status: number }>({
   pageNum: 1,
   pageSize: 5,
 })
+const currentTime = ref(Date.now())
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+let refreshingExpiredOrders = false
+let ordersRequestVersion = 0
 
 // ===== loadData =====
 // 加载订单列表数据
 const loadData = async (type: 'refresh' | 'add' = 'refresh') => {
-  if (type === 'refresh') {
-    searchParam.value.pageNum = 1
-  } else {
-    searchParam.value.pageNum++
-  }
-
-  const index = tabCurrentIndex.value
-  const navItem = navList[index]
-
-  if (loadingType.value === 'loading') {
-    // 防止重复加载
-    return
-  }
-
-  searchParam.value.status = navItem.state
+  if (type === 'add' && loadingType.value !== 'more') return
+  const version = ++ordersRequestVersion
+  const pageNum = type === 'refresh' ? 1 : searchParam.value.pageNum + 1
+  const status = navList[tabCurrentIndex.value].state
   loadingType.value = 'loading'
-
   try {
-    const res = await getOrderListAPI(searchParam.value)
-    const list = res.data.list
-    if (type === 'refresh') {
-      orderList.value = list
-      loadingType.value = 'more'
-    } else {
-      if (list != null && list.length > 0) {
-        orderList.value = orderList.value.concat(list)
-        loadingType.value = 'more'
-      } else {
-        searchParam.value.pageNum--
-        loadingType.value = 'noMore'
-      }
-    }
+    const res = await getOrderListAPI({ ...searchParam.value, status, pageNum })
+    if (version !== ordersRequestVersion) return
+    const list = res.data.list || []
+    orderList.value = type === 'refresh' ? list : orderList.value.concat(list)
+    searchParam.value.pageNum = pageNum
+    searchParam.value.status = status
+    loadingType.value = pageNum < res.data.totalPage ? 'more' : 'noMore'
   } catch (e) {
+    if (version !== ordersRequestVersion) return
     console.error('加载订单列表失败', e)
     loadingType.value = 'more'
-  }
-
-  // 下拉刷新时停止刷新动画
-  if (type === 'refresh') {
-    uni.stopPullDownRefresh()
+  } finally {
+    if (version === ordersRequestVersion && type === 'refresh') uni.stopPullDownRefresh()
   }
 }
 
@@ -169,9 +159,28 @@ const loadData = async (type: 'refresh' | 'add' = 'refresh') => {
 // 页面加载时执行
 onLoad((options) => {
   if (options?.state != null) {
-    tabCurrentIndex.value = +options.state
+    const index = Number(options.state)
+    if (navList[index]) tabCurrentIndex.value = index
   }
-  loadData()
+  countdownTimer = setInterval(async () => {
+    currentTime.value = Date.now()
+    const hasExpiredOrder = orderList.value.some(
+      (order) =>
+        order.status === 0 &&
+        getPaymentRemainingSeconds(order.paymentExpireTime, currentTime.value) === 0,
+    )
+    if (hasExpiredOrder && !refreshingExpiredOrders) {
+      refreshingExpiredOrders = true
+      await loadData()
+      refreshingExpiredOrders = false
+    }
+  }, 1000)
+})
+
+onShow(() => loadData())
+
+onUnload(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 
 // ===== onPullDownRefresh =====
@@ -184,13 +193,18 @@ onPullDownRefresh(() => {
 
 // Swiper切换
 const handleSwiperChange = (e: { detail: { current: number } }) => {
+  if (tabCurrentIndex.value === e.detail.current) return
   tabCurrentIndex.value = e.detail.current
+  orderList.value = []
   loadData()
 }
 
 // 顶部Tab点击
 const handleTabClick = (index: number) => {
+  if (tabCurrentIndex.value === index) return
   tabCurrentIndex.value = index
+  orderList.value = []
+  loadData()
 }
 
 // 删除订单
@@ -225,7 +239,8 @@ const handleCancelOrder = (orderId: number) => {
         try {
           await cancelUserOrderAPI(orderId)
           uni.hideLoading()
-          loadData()
+          await loadData()
+          uni.showToast({ title: '订单已取消', icon: 'success' })
         } catch (e) {
           uni.hideLoading()
           console.error('取消订单失败', e)
@@ -246,14 +261,21 @@ const handlePayOrder = (orderId: number) => {
 const handleReceiveOrder = (orderId: number) => {
   uni.showModal({
     title: '提示',
-    content: '是否要确认收货？',
+    content: '请确认已收到商品。确认后订单完成，即可评价商品。',
     success: async (res) => {
       if (res.confirm) {
         uni.showLoading({ title: '请稍后' })
         try {
           await confirmReceiveOrderAPI(orderId)
           uni.hideLoading()
-          loadData()
+          await loadData()
+          uni.showModal({
+            title: '收货成功',
+            content: '现在可以评价本次购买的商品了。',
+            confirmText: '去评价',
+            cancelText: '稍后评价',
+            success: (result) => { if (result.confirm) handleCommentOrder(orderId) },
+          })
         } catch (e) {
           uni.hideLoading()
           console.error('确认收货失败', e)
@@ -263,6 +285,7 @@ const handleReceiveOrder = (orderId: number) => {
   })
 }
 
+// 评价订单商品
 const handleCommentOrder = (orderId: number) => {
   uni.navigateTo({ url: `/pages/order/comment?orderId=${orderId}` })
 }
@@ -286,6 +309,10 @@ const formatStatus = (status: number): string => {
     4: '交易关闭',
   }
   return statusMap[status] || ''
+}
+
+const getCountdown = (paymentExpireTime?: string | null): string => {
+  return formatPaymentCountdown(paymentExpireTime, currentTime.value)
 }
 
 // 格式化商品属性
@@ -516,6 +543,13 @@ page {
         margin: 0 2rpx 0 8rpx;
       }
     }
+  }
+
+  .payment-deadline {
+    padding: 0 30rpx 20rpx;
+    text-align: right;
+    font-size: 24rpx;
+    color: $base-color;
   }
 
   .action-box {

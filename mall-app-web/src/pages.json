@@ -10,6 +10,7 @@
       "path": "pages/index/index",
       "style": {
         "navigationBarTitleText": "Mall商城",
+        "navigationStyle": "custom",
         "enablePullDownRefresh": true,
         "app-plus": {
           "titleNView": {
@@ -95,6 +96,19 @@
       "path": "pages/set/set",
       "style": {
         "navigationBarTitleText": "设置"
+      }
+    },
+    {
+      "path": "pages/product/flashProductList",
+      "style": {
+        "navigationBarTitleText": "秒杀专区",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/set/changePassword",
+      "style": {
+        "navigationBarTitleText": "修改密码"
       }
     },
     {
@@ -204,6 +218,13 @@
       "path": "pages/notice/notice",
       "style": {
         "navigationBarTitleText": "消息通知"
+      }
+    },
+    {
+      "path": "pages/user/myComments",
+      "style": {
+        "navigationBarTitleText": "我的评价",
+        "enablePullDownRefresh": true
       }
     },
     {

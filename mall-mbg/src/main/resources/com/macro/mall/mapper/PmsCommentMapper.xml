@@ -4,6 +4,7 @@
   <resultMap id="BaseResultMap" type="com.macro.mall.model.PmsComment">
     <id column="id" jdbcType="BIGINT" property="id" />
     <result column="product_id" jdbcType="BIGINT" property="productId" />
+    <result column="member_id" jdbcType="BIGINT" property="memberId" />
     <result column="member_nick_name" jdbcType="VARCHAR" property="memberNickName" />
     <result column="product_name" jdbcType="VARCHAR" property="productName" />
     <result column="star" jdbcType="INTEGER" property="star" />
@@ -79,7 +80,7 @@
     </where>
   </sql>
   <sql id="Base_Column_List">
-    id, product_id, member_nick_name, product_name, star, member_ip, create_time, show_status, 
+    id, product_id, member_id, member_nick_name, product_name, star, member_ip, create_time, show_status,
     product_attribute, collect_couont, read_count, pics, member_icon, replay_count
   </sql>
   <sql id="Blob_Column_List">

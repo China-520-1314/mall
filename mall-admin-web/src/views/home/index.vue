@@ -195,22 +195,6 @@ const chartOption = computed(() => {
       <el-row :gutter="20">
         <el-col :span="6">
           <div class="out-border">
-            <div class="layout-title">Spring Boot项目学习</div>
-            <div class="color-main address-content">
-              <a href="https://www.macrozheng.com" target="_blank">mall学习教程</a>
-            </div>
-          </div>
-        </el-col>
-        <el-col :span="6">
-          <div class="out-border">
-            <div class="layout-title">Spring Cloud项目学习</div>
-            <div class="color-main address-content">
-              <a href="https://cloud.macrozheng.com" target="_blank">mall-swarm学习教程</a>
-            </div>
-          </div>
-        </el-col>
-        <el-col :span="6">
-          <div class="out-border">
             <div class="layout-title">点Star支持项目</div>
             <div class="color-main address-content">
               <a href="https://github.com/macrozheng/mall" target="_blank">mall项目</a>

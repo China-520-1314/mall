@@ -4,6 +4,7 @@
   <resultMap id="BaseResultMap" type="com.macro.mall.model.PmsCommentReplay">
     <id column="id" jdbcType="BIGINT" property="id" />
     <result column="comment_id" jdbcType="BIGINT" property="commentId" />
+    <result column="member_id" jdbcType="BIGINT" property="memberId" />
     <result column="member_nick_name" jdbcType="VARCHAR" property="memberNickName" />
     <result column="member_icon" jdbcType="VARCHAR" property="memberIcon" />
     <result column="content" jdbcType="VARCHAR" property="content" />
@@ -69,7 +70,7 @@
     </where>
   </sql>
   <sql id="Base_Column_List">
-    id, comment_id, member_nick_name, member_icon, content, create_time, type
+    id, comment_id, member_id, member_nick_name, member_icon, content, create_time, type
   </sql>
   <select id="selectByExample" parameterType="com.macro.mall.model.PmsCommentReplayExample" resultMap="BaseResultMap">
     select
@@ -105,10 +106,10 @@
     <selectKey keyProperty="id" order="AFTER" resultType="java.lang.Long">
       SELECT LAST_INSERT_ID()
     </selectKey>
-    insert into pms_comment_replay (comment_id, member_nick_name, member_icon, 
+    insert into pms_comment_replay (comment_id, member_id, member_nick_name, member_icon,
       content, create_time, type
       )
-    values (#{commentId,jdbcType=BIGINT}, #{memberNickName,jdbcType=VARCHAR}, #{memberIcon,jdbcType=VARCHAR}, 
+    values (#{commentId,jdbcType=BIGINT}, #{memberId,jdbcType=BIGINT}, #{memberNickName,jdbcType=VARCHAR}, #{memberIcon,jdbcType=VARCHAR},
       #{content,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{type,jdbcType=INTEGER}
       )
   </insert>
@@ -120,6 +121,9 @@
     <trim prefix="(" suffix=")" suffixOverrides=",">
       <if test="commentId != null">
         comment_id,
+      </if>
+      <if test="memberId != null">
+        member_id,
       </if>
       <if test="memberNickName != null">
         member_nick_name,
@@ -140,6 +144,9 @@
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="commentId != null">
         #{commentId,jdbcType=BIGINT},
+      </if>
+      <if test="memberId != null">
+        #{memberId,jdbcType=BIGINT},
       </if>
       <if test="memberNickName != null">
         #{memberNickName,jdbcType=VARCHAR},

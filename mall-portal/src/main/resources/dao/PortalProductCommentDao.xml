@@ -1,6 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.macro.mall.portal.dao.PortalProductCommentDao">
+    <resultMap id="CommentView" type="com.macro.mall.portal.domain.ProductCommentView"
+               extends="com.macro.mall.mapper.PmsCommentMapper.ResultMapWithBLOBs">
+        <result column="liked" property="liked"/>
+    </resultMap>
+    <resultMap id="MyCommentView" type="com.macro.mall.portal.domain.MyProductCommentView">
+        <id column="id" property="id"/>
+        <result column="product_id" property="productId"/>
+        <result column="product_name" property="productName"/>
+        <result column="product_pic" property="productPic"/>
+        <result column="star" property="star"/>
+        <result column="content" property="content"/>
+        <result column="pics" property="pics"/>
+        <result column="create_time" property="createTime"/>
+        <result column="show_status" property="showStatus"/>
+        <result column="replay_count" property="replayCount"/>
+        <result column="collect_couont" property="collectCouont"/>
+    </resultMap>
+    <resultMap id="ReceivedReplyView" type="com.macro.mall.portal.domain.ReceivedCommentReplyView">
+        <id column="reply_id" property="replyId"/>
+        <result column="comment_id" property="commentId"/>
+        <result column="product_id" property="productId"/>
+        <result column="product_name" property="productName"/>
+        <result column="product_pic" property="productPic"/>
+        <result column="comment_content" property="commentContent"/>
+        <result column="reply_member_nick_name" property="replyMemberNickName"/>
+        <result column="reply_member_icon" property="replyMemberIcon"/>
+        <result column="reply_content" property="replyContent"/>
+        <result column="reply_create_time" property="replyCreateTime"/>
+    </resultMap>
+    <select id="lockOrderForComment" resultMap="com.macro.mall.mapper.OmsOrderMapper.BaseResultMap">
+        SELECT * FROM oms_order WHERE id = #{orderId} FOR UPDATE
+    </select>
     <select id="selectCommentedOrderItemIds" resultType="long">
         SELECT order_item_id
         FROM pms_comment
@@ -42,5 +74,114 @@
             COALESCE(SUM(CASE WHEN star = 5 THEN 1 ELSE 0 END), 0) AS star5Count
         FROM pms_comment
         WHERE product_id = #{productId} AND show_status = 1
+    </select>
+
+    <select id="selectVisibleComment" resultMap="com.macro.mall.mapper.PmsCommentMapper.ResultMapWithBLOBs">
+        SELECT id, product_id, member_id, member_nick_name, product_name, star, member_ip,
+               create_time, show_status, product_attribute, collect_couont, read_count,
+               content, pics, member_icon, replay_count
+        FROM pms_comment
+        WHERE id = #{commentId} AND show_status = 1
+    </select>
+
+    <!-- 所有互动写入先锁住根评价，避免并发点赞/回复引起缓存计数漂移。 -->
+    <select id="lockVisibleComment" resultMap="com.macro.mall.mapper.PmsCommentMapper.BaseResultMap">
+        SELECT id, product_id, member_id FROM pms_comment
+        WHERE id = #{commentId} AND show_status = 1 FOR UPDATE
+    </select>
+
+    <select id="listComments" resultMap="CommentView">
+        SELECT c.id, c.product_id, c.member_id, c.member_nick_name, c.product_name,
+               c.star, c.create_time, c.show_status, c.product_attribute, c.content,
+               c.pics, c.member_icon, c.collect_couont, c.replay_count,
+               EXISTS (SELECT 1 FROM pms_comment_like l
+                       WHERE l.comment_id = c.id AND l.member_id = #{memberId}) AS liked
+        FROM pms_comment c
+        WHERE c.product_id = #{productId} AND c.show_status = 1
+        ORDER BY c.create_time DESC, c.id DESC
+    </select>
+
+    <select id="selectReply" resultMap="com.macro.mall.mapper.PmsCommentReplayMapper.BaseResultMap">
+        SELECT id, comment_id, member_id FROM pms_comment_replay WHERE id = #{replyId}
+    </select>
+
+    <select id="listMyComments" resultMap="MyCommentView">
+        SELECT c.id, c.product_id, c.product_name, COALESCE(i.product_pic, p.pic) AS product_pic,
+               c.star, c.content, c.pics, c.create_time, c.show_status, c.replay_count, c.collect_couont
+        FROM pms_comment c
+        LEFT JOIN oms_order_item i ON i.id = c.order_item_id
+        LEFT JOIN pms_product p ON p.id = c.product_id
+        WHERE c.member_id = #{memberId} AND c.show_status = 1
+        ORDER BY c.create_time DESC, c.id DESC
+    </select>
+
+    <select id="listReceivedReplies" resultMap="ReceivedReplyView">
+        SELECT r.id AS reply_id, c.id AS comment_id, c.product_id, c.product_name,
+               COALESCE(i.product_pic, p.pic) AS product_pic, c.content AS comment_content,
+               r.member_nick_name AS reply_member_nick_name, r.member_icon AS reply_member_icon,
+               r.content AS reply_content, r.create_time AS reply_create_time
+        FROM pms_comment c
+        JOIN pms_comment_replay r ON r.comment_id = c.id
+        LEFT JOIN oms_order_item i ON i.id = c.order_item_id
+        LEFT JOIN pms_product p ON p.id = c.product_id
+        WHERE c.member_id = #{memberId} AND c.show_status = 1
+          AND (r.member_id IS NULL OR r.member_id &lt;&gt; #{memberId})
+        ORDER BY r.create_time DESC, r.id DESC
+    </select>
+
+    <select id="findCommentPurchase" resultType="com.macro.mall.portal.domain.ProductCommentPurchase">
+        SELECT o.id AS orderId, i.id AS orderItemId
+        FROM oms_order o JOIN oms_order_item i ON i.order_id = o.id
+        LEFT JOIN pms_comment c ON c.order_item_id = i.id
+        WHERE o.member_id = #{memberId} AND o.status = 3 AND o.delete_status = 0
+          AND i.product_id = #{productId} AND c.id IS NULL
+        ORDER BY o.create_time DESC, i.id DESC LIMIT 1
+    </select>
+
+    <update id="hideComment">
+        UPDATE pms_comment SET show_status = 0
+        WHERE id = #{commentId} AND member_id = #{memberId} AND show_status = 1
+    </update>
+
+    <select id="listReplies" resultMap="com.macro.mall.mapper.PmsCommentReplayMapper.BaseResultMap">
+        SELECT id, comment_id, member_id, member_nick_name, member_icon, content, create_time, type
+        FROM pms_comment_replay
+        WHERE comment_id = #{commentId}
+        ORDER BY create_time DESC, id DESC
+    </select>
+
+    <insert id="insertReply" useGeneratedKeys="true" keyProperty="reply.id">
+        INSERT INTO pms_comment_replay
+          (comment_id, member_id, member_nick_name, member_icon, content, create_time, type)
+        VALUES
+          (#{reply.commentId}, #{reply.memberId}, #{reply.memberNickName}, #{reply.memberIcon},
+           #{reply.content}, #{reply.createTime}, #{reply.type})
+    </insert>
+
+    <delete id="deleteReply">
+        DELETE FROM pms_comment_replay
+        WHERE id = #{replyId} AND member_id = #{memberId}
+    </delete>
+
+    <select id="countReplies" resultType="int">
+        SELECT COUNT(*) FROM pms_comment_replay WHERE comment_id = #{commentId}
+    </select>
+
+    <insert id="addLike">
+        INSERT IGNORE INTO pms_comment_like (comment_id, member_id, create_time)
+        VALUES (#{commentId}, #{memberId}, NOW())
+    </insert>
+
+    <delete id="removeLike">
+        DELETE FROM pms_comment_like WHERE comment_id = #{commentId} AND member_id = #{memberId}
+    </delete>
+
+    <select id="hasLiked" resultType="boolean">
+        SELECT COUNT(*) &gt; 0 FROM pms_comment_like
+        WHERE comment_id = #{commentId} AND member_id = #{memberId}
+    </select>
+
+    <select id="countLikes" resultType="int">
+        SELECT COUNT(*) FROM pms_comment_like WHERE comment_id = #{commentId}
     </select>
 </mapper>

@@ -16,6 +16,8 @@ import com.macro.mall.portal.domain.*;
 import com.macro.mall.portal.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -24,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +35,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OmsPortalOrderServiceImpl.class);
+    private static final AtomicLong LOCAL_ORDER_SEQUENCE = new AtomicLong(System.currentTimeMillis());
     @Autowired
     private UmsMemberService memberService;
     @Autowired
@@ -70,6 +75,8 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     private OmsOrderItemMapper orderItemMapper;
     @Autowired
     private CancelOrderSender cancelOrderSender;
+
+    private static final int DEFAULT_ORDER_TIMEOUT_MINUTES = 30;
 
     @Override
     public ConfirmOrderResult generateConfirmOrder(List<Long> cartIds) {
@@ -137,6 +144,10 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
         item.setProductSn(product.getProductSn());
         item.setProductSubTitle(product.getSubTitle());
         item.setProductSkuCode(skuStock.getSkuCode());
+        if (skuStock.getPrice() == null) {
+            Asserts.fail("商品价格异常，请联系管理员");
+        }
+        item.setPrice(skuStock.getPrice());
         item.setQuantity(orderParam.getBuyNowQuantity());
         item.setDeleteStatus(0);
         return item;
@@ -288,7 +299,7 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
         orderItemDao.insertList(orderItemList);
         //如使用优惠券更新优惠券使用状态
         if (orderParam.getCouponId() != null) {
-            updateCouponStatus(orderParam.getCouponId(), currentMember.getId(), 1);
+            markCouponUsed(orderParam.getCouponId(), currentMember.getId(), order);
         }
         //如使用积分需要扣除积分
         if (orderParam.getUseIntegration() != null) {
@@ -317,9 +328,13 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     @Override
     @Transactional
     public Integer paySuccess(Long orderId, Integer payType) {
-        OmsOrder order = getCurrentMemberOrder(orderId);
+        OmsOrder order = getLockedCurrentMemberOrder(orderId);
         if (!Integer.valueOf(0).equals(order.getStatus())) {
             Asserts.fail("只能支付待付款订单");
+        }
+        if (isPaymentExpired(order)) {
+            cancelOrder(orderId);
+            return -1;
         }
         return applyPaySuccess(order, payType);
     }
@@ -339,79 +354,47 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     @Transactional
     public Integer cancelTimeOutOrder() {
         Integer count=0;
-        OmsOrderSetting orderSetting = orderSettingMapper.selectByPrimaryKey(1L);
+        int orderTimeoutMinutes = getOrderTimeoutMinutes();
         //查询超时、未支付的订单及订单详情
-        List<OmsOrderDetail> timeOutOrders = portalOrderDao.getTimeOutOrders(orderSetting.getNormalOrderOvertime());
+        List<OmsOrderDetail> timeOutOrders = portalOrderDao.getTimeOutOrders(orderTimeoutMinutes);
         if (CollectionUtils.isEmpty(timeOutOrders)) {
             return count;
         }
-        //修改订单状态为交易取消
-        List<Long> ids = new ArrayList<>();
         for (OmsOrderDetail timeOutOrder : timeOutOrders) {
-            ids.add(timeOutOrder.getId());
-        }
-        portalOrderDao.updateOrderStatus(ids, 4);
-        for (OmsOrderDetail timeOutOrder : timeOutOrders) {
-            //解除订单商品库存锁定
-            portalOrderDao.releaseSkuStockLock(timeOutOrder.getOrderItemList());
-            //修改优惠券使用状态
-            updateCouponStatus(timeOutOrder.getCouponId(), timeOutOrder.getMemberId(), 0);
-            //返还使用积分
-            if (timeOutOrder.getUseIntegration() != null) {
-                UmsMember member = memberService.getById(timeOutOrder.getMemberId());
-                memberService.updateIntegration(timeOutOrder.getMemberId(), member.getIntegration() + timeOutOrder.getUseIntegration());
+            OmsOrder locked = portalOrderDao.lockOrder(timeOutOrder.getId());
+            if (locked != null && Integer.valueOf(0).equals(locked.getStatus())
+                    && isPaymentExpired(locked)) {
+                cancelOrderLocked(locked);
+                count++;
             }
         }
-        return timeOutOrders.size();
+        return count;
     }
 
     @Override
     @Transactional
     public void cancelOrder(Long orderId) {
-        //查询未付款的取消订单
-        OmsOrderExample example = new OmsOrderExample();
-        example.createCriteria().andIdEqualTo(orderId).andStatusEqualTo(0).andDeleteStatusEqualTo(0);
-        List<OmsOrder> cancelOrderList = orderMapper.selectByExample(example);
-        if (CollectionUtils.isEmpty(cancelOrderList)) {
-            return;
-        }
-        OmsOrder cancelOrder = cancelOrderList.get(0);
-        if (cancelOrder != null) {
-            //修改订单状态为取消
-            cancelOrder.setStatus(4);
-            orderMapper.updateByPrimaryKeySelective(cancelOrder);
-            OmsOrderItemExample orderItemExample = new OmsOrderItemExample();
-            orderItemExample.createCriteria().andOrderIdEqualTo(orderId);
-            List<OmsOrderItem> orderItemList = orderItemMapper.selectByExample(orderItemExample);
-            //解除订单商品库存锁定
-            if (!CollectionUtils.isEmpty(orderItemList)) {
-                portalOrderDao.releaseSkuStockLock(orderItemList);
-            }
-            //修改优惠券使用状态
-            updateCouponStatus(cancelOrder.getCouponId(), cancelOrder.getMemberId(), 0);
-            //返还使用积分
-            if (cancelOrder.getUseIntegration() != null) {
-                UmsMember member = memberService.getById(cancelOrder.getMemberId());
-                memberService.updateIntegration(cancelOrder.getMemberId(), member.getIntegration() + cancelOrder.getUseIntegration());
-            }
-        }
+        OmsOrder cancelOrder = portalOrderDao.lockOrder(orderId);
+        // 延迟消息只能取消未付款订单，付款后的取消必须由用户主动发起。
+        if (cancelOrder == null || !Integer.valueOf(0).equals(cancelOrder.getStatus())
+                || Integer.valueOf(1).equals(cancelOrder.getDeleteStatus())) return;
+        cancelOrderLocked(cancelOrder);
     }
 
     @Override
     @Transactional
     public void cancelUserOrder(Long orderId) {
-        OmsOrder order = getCurrentMemberOrder(orderId);
-        if (!Integer.valueOf(0).equals(order.getStatus())) {
-            Asserts.fail("只能取消待付款订单");
+        OmsOrder order = getLockedCurrentMemberOrder(orderId);
+        if (order.getStatus() != 0 && order.getStatus() != 1) {
+            Asserts.fail("当前订单状态不可取消");
         }
-        cancelOrder(orderId);
+        cancelOrderLocked(order);
     }
 
     @Override
     public void sendDelayMessageCancelOrder(Long orderId) {
         //获取订单超时时间
-        OmsOrderSetting orderSetting = orderSettingMapper.selectByPrimaryKey(1L);
-        long delayTimes = orderSetting.getNormalOrderOvertime() * 60 * 1000;
+        long delayTimes = getOrderTimeoutMinutes() * 60 * 1000L;
         //发送延迟消息
         cancelOrderSender.sendMessage(orderId, delayTimes);
     }
@@ -419,9 +402,9 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     @Override
     @Transactional
     public void confirmReceiveOrder(Long orderId) {
-        OmsOrder order = getCurrentMemberOrder(orderId);
-        if(order.getStatus()!=2){
-            Asserts.fail("该订单还未发货！");
+        OmsOrder order = getLockedCurrentMemberOrder(orderId);
+        if(order.getStatus()!=1 && order.getStatus()!=2){
+            Asserts.fail("当前订单暂不可确认收货");
         }
         order.setStatus(3);
         order.setConfirmStatus(1);
@@ -430,7 +413,10 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     }
 
     @Override
+    @Transactional
     public CommonPage<OmsOrderDetail> list(Integer status, Integer pageNum, Integer pageSize) {
+        // 开发环境不依赖 RabbitMQ，查询订单前同步清理超时订单作为兜底。
+        cancelTimeOutOrder();
         if(status==-1){
             status = null;
         }
@@ -461,11 +447,13 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
         orderItemExample.createCriteria().andOrderIdIn(orderIds);
         List<OmsOrderItem> orderItemList = orderItemMapper.selectByExample(orderItemExample);
         List<OmsOrderDetail> orderDetailList = new ArrayList<>();
+        int orderTimeoutMinutes = getOrderTimeoutMinutes();
         for (OmsOrder omsOrder : orderList) {
             OmsOrderDetail orderDetail = new OmsOrderDetail();
             BeanUtil.copyProperties(omsOrder,orderDetail);
             List<OmsOrderItem> relatedItemList = orderItemList.stream().filter(item -> item.getOrderId().equals(orderDetail.getId())).collect(Collectors.toList());
             orderDetail.setOrderItemList(relatedItemList);
+            setPaymentExpireTime(orderDetail, orderTimeoutMinutes);
             orderDetailList.add(orderDetail);
         }
         resultPage.setList(orderDetailList);
@@ -473,14 +461,20 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     }
 
     @Override
+    @Transactional
     public OmsOrderDetail detail(Long orderId) {
         OmsOrder omsOrder = getCurrentMemberOrder(orderId);
+        if (Integer.valueOf(0).equals(omsOrder.getStatus()) && isPaymentExpired(omsOrder)) {
+            cancelOrder(orderId);
+            omsOrder = orderMapper.selectByPrimaryKey(orderId);
+        }
         OmsOrderItemExample example = new OmsOrderItemExample();
         example.createCriteria().andOrderIdEqualTo(orderId);
         List<OmsOrderItem> orderItemList = orderItemMapper.selectByExample(example);
         OmsOrderDetail orderDetail = new OmsOrderDetail();
         BeanUtil.copyProperties(omsOrder,orderDetail);
         orderDetail.setOrderItemList(orderItemList);
+        setPaymentExpireTime(orderDetail, getOrderTimeoutMinutes());
         return orderDetail;
     }
 
@@ -496,6 +490,7 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     }
 
     @Override
+    @Transactional
     public void paySuccessByOrderSn(String orderSn, Integer payType) {
         OmsOrderExample example =  new OmsOrderExample();
         example.createCriteria()
@@ -504,8 +499,40 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
                 .andDeleteStatusEqualTo(0);
         List<OmsOrder> orderList = orderMapper.selectByExample(example);
         if(CollUtil.isNotEmpty(orderList)){
-            OmsOrder order = orderList.get(0);
+            OmsOrder order = portalOrderDao.lockOrder(orderList.get(0).getId());
+            if (order == null || !Integer.valueOf(0).equals(order.getStatus())) return;
+            if (isPaymentExpired(order)) {
+                cancelOrder(order.getId());
+                return;
+            }
             applyPaySuccess(order, payType);
+        }
+    }
+
+    private int getOrderTimeoutMinutes() {
+        OmsOrderSetting orderSetting = orderSettingMapper.selectByPrimaryKey(1L);
+        if (orderSetting == null || orderSetting.getNormalOrderOvertime() == null
+                || orderSetting.getNormalOrderOvertime() <= 0) {
+            return DEFAULT_ORDER_TIMEOUT_MINUTES;
+        }
+        return orderSetting.getNormalOrderOvertime();
+    }
+
+    private boolean isPaymentExpired(OmsOrder order) {
+        if (order == null || order.getCreateTime() == null) {
+            return false;
+        }
+        return getPaymentExpireTime(order.getCreateTime(), getOrderTimeoutMinutes()).getTime()
+                <= System.currentTimeMillis();
+    }
+
+    private Date getPaymentExpireTime(Date createTime, int timeoutMinutes) {
+        return new Date(createTime.getTime() + timeoutMinutes * 60_000L);
+    }
+
+    private void setPaymentExpireTime(OmsOrderDetail orderDetail, int timeoutMinutes) {
+        if (Integer.valueOf(0).equals(orderDetail.getStatus()) && orderDetail.getCreateTime() != null) {
+            orderDetail.setPaymentExpireTime(getPaymentExpireTime(orderDetail.getCreateTime(), timeoutMinutes));
         }
     }
 
@@ -519,6 +546,38 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
         return order;
     }
 
+    private OmsOrder getLockedCurrentMemberOrder(Long orderId) {
+        UmsMember member = memberService.getCurrentMember();
+        OmsOrder order = portalOrderDao.lockOrder(orderId);
+        if (order == null || !Objects.equals(member.getId(), order.getMemberId())
+                || Integer.valueOf(1).equals(order.getDeleteStatus())) {
+            Asserts.fail("订单不存在");
+        }
+        return order;
+    }
+
+    private void cancelOrderLocked(OmsOrder order) {
+        int oldStatus = order.getStatus() == null ? -1 : order.getStatus();
+        if (oldStatus != 0 && oldStatus != 1) return;
+        order.setStatus(4);
+        orderMapper.updateByPrimaryKeySelective(order);
+        OmsOrderItemExample itemExample = new OmsOrderItemExample();
+        itemExample.createCriteria().andOrderIdEqualTo(order.getId());
+        List<OmsOrderItem> items = orderItemMapper.selectByExample(itemExample);
+        if (!CollectionUtils.isEmpty(items)) {
+            if (oldStatus == 0) portalOrderDao.releaseSkuStockLock(items);
+            else portalOrderDao.restoreSkuStock(items);
+        }
+        restoreOrderBenefits(order);
+    }
+
+    private void restoreOrderBenefits(OmsOrder order) {
+        if (order.getCouponId() != null) portalOrderDao.restoreCoupon(order);
+        if (order.getUseIntegration() != null && order.getUseIntegration() > 0) {
+            portalOrderDao.adjustMemberIntegration(order.getMemberId(), order.getUseIntegration());
+        }
+    }
+
     /**
      * 生成18位订单编号:8位日期+2位平台号码+2位支付方式+6位以上自增id
      */
@@ -526,7 +585,13 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
         StringBuilder sb = new StringBuilder();
         String date = new SimpleDateFormat("yyyyMMdd").format(new Date());
         String key = REDIS_DATABASE+":"+ REDIS_KEY_ORDER_ID + date;
-        Long increment = redisService.incr(key, 1);
+        Long increment;
+        try {
+            increment = redisService.incr(key, 1);
+        } catch (RuntimeException exception) {
+            increment = LOCAL_ORDER_SEQUENCE.incrementAndGet();
+            LOGGER.warn("Redis unavailable, using local order sequence: {}", exception.getMessage());
+        }
         sb.append(date);
         sb.append(String.format("%02d", order.getSourceType()));
         sb.append(String.format("%02d", order.getPayType()));
@@ -591,6 +656,22 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
             couponHistory.setUseTime(new Date());
             couponHistory.setUseStatus(useStatus);
             couponHistoryMapper.updateByPrimaryKeySelective(couponHistory);
+        }
+    }
+
+    private void markCouponUsed(Long couponId, Long memberId, OmsOrder order) {
+        if (couponId == null) return;
+        SmsCouponHistoryExample example = new SmsCouponHistoryExample();
+        example.createCriteria().andMemberIdEqualTo(memberId)
+                .andCouponIdEqualTo(couponId).andUseStatusEqualTo(0);
+        List<SmsCouponHistory> list = couponHistoryMapper.selectByExample(example);
+        if (!CollectionUtils.isEmpty(list)) {
+            SmsCouponHistory history = list.get(0);
+            history.setUseStatus(1);
+            history.setUseTime(new Date());
+            history.setOrderId(order.getId());
+            history.setOrderSn(order.getOrderSn());
+            couponHistoryMapper.updateByPrimaryKeySelective(history);
         }
     }
 

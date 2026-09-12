@@ -75,7 +75,8 @@ const handleSearch = () => {
   // 跳转到商品列表页（空关键字搜索所有商品）
   uni.navigateTo({
     url: trimmed
-      ? `/pages/product/list?keyword=${encodeURIComponent(trimmed)}`
+      // uni.navigateTo 会在 H5 路由层自动编码，提前 encode 会导致 %25E6... 的二次编码。
+      ? `/pages/product/list?keyword=${trimmed}`
       : '/pages/product/list',
   })
 }
@@ -85,7 +86,7 @@ const handleHistoryClick = (item: string) => {
   keyword.value = item
   searchStore.addKeyword(item)
   uni.navigateTo({
-    url: `/pages/product/list?keyword=${encodeURIComponent(item)}`,
+    url: `/pages/product/list?keyword=${item}`,
   })
 }
 

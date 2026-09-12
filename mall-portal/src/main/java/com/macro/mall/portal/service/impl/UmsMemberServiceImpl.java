@@ -10,6 +10,7 @@ import com.macro.mall.model.UmsMemberLevelExample;
 import com.macro.mall.portal.domain.MemberDetails;
 import com.macro.mall.portal.dao.UmsMemberEmailDao;
 import com.macro.mall.portal.domain.EmailCodePurpose;
+import com.macro.mall.portal.domain.EmailCodeSendResult;
 import com.macro.mall.portal.service.EmailVerificationService;
 import com.macro.mall.portal.service.UmsMemberCacheService;
 import com.macro.mall.portal.service.UmsMemberService;
@@ -112,7 +113,7 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     }
 
     @Override
-    public void sendEmailCode(String email, EmailCodePurpose purpose) {
+    public EmailCodeSendResult sendEmailCode(String email, EmailCodePurpose purpose) {
         String normalizedEmail = EmailVerificationServiceImpl.normalizeAndValidate(email);
         int registeredCount = memberEmailDao.countByEmail(normalizedEmail);
         if (purpose == EmailCodePurpose.REGISTER && registeredCount > 0) {
@@ -121,7 +122,7 @@ public class UmsMemberServiceImpl implements UmsMemberService {
         if (purpose == EmailCodePurpose.RESET_PASSWORD && registeredCount == 0) {
             Asserts.fail("该邮箱尚未注册");
         }
-        emailVerificationService.sendCode(normalizedEmail, purpose);
+        return emailVerificationService.sendCode(normalizedEmail, purpose);
     }
 
     @Override
@@ -137,6 +138,28 @@ public class UmsMemberServiceImpl implements UmsMemberService {
         member.setPassword(passwordEncoder.encode(password));
         memberMapper.updateByPrimaryKeySelective(member);
         memberCacheService.delMember(memberId);
+    }
+
+    @Override
+    public void changePassword(String oldPassword, String newPassword, String confirmPassword) {
+        if (oldPassword == null || oldPassword.isBlank()) {
+            Asserts.fail("请输入当前密码");
+        }
+        validatePassword(newPassword);
+        if (!newPassword.equals(confirmPassword)) {
+            Asserts.fail("两次输入的新密码不一致");
+        }
+        UmsMember currentMember = getCurrentMember();
+        UmsMember member = memberMapper.selectByPrimaryKey(currentMember.getId());
+        if (member == null || !passwordEncoder.matches(oldPassword, member.getPassword())) {
+            Asserts.fail("当前密码不正确");
+        }
+        if (passwordEncoder.matches(newPassword, member.getPassword())) {
+            Asserts.fail("新密码不能与当前密码相同");
+        }
+        member.setPassword(passwordEncoder.encode(newPassword));
+        memberMapper.updateByPrimaryKeySelective(member);
+        memberCacheService.delMember(member.getId());
     }
 
     @Override

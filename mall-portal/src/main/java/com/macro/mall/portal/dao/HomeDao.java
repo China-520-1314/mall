@@ -14,6 +14,12 @@ import java.util.List;
  */
 public interface HomeDao {
 
+    /** 当前会员最近加入购物车的商品，按商品去重。 */
+    List<Long> getCartPreferenceProductIds(@Param("memberId") Long memberId);
+
+    /** 当前会员已付款、已发货或已完成订单中的商品。 */
+    List<Long> getPurchasedPreferenceProductIds(@Param("memberId") Long memberId);
+
     /**
      * 获取推荐品牌
      */

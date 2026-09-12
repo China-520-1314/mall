@@ -57,6 +57,9 @@ public class OmsPortalOrderController {
     @ResponseBody
     public CommonResult paySuccess(@RequestParam Long orderId,@RequestParam Integer payType) {
         Integer count = portalOrderService.paySuccess(orderId,payType);
+        if (count < 0) {
+            return CommonResult.failed("订单已超过30分钟支付时限，已自动取消");
+        }
         return CommonResult.success(count, "支付成功");
     }
 

@@ -113,12 +113,17 @@
           @eventClick="handleNavTo('/pages/user/productCollection')"
         ></mix-list-cell>
         <mix-list-cell
+          icon="icon-pingjia"
+          iconColor="#f39c5a"
+          title="我的评价"
+          @eventClick="handleNavTo('/pages/user/myComments')"
+        ></mix-list-cell>
+        <mix-list-cell
           icon="icon-xiaoxi"
           iconColor="#54b4ef"
           title="消息通知"
           @eventClick="handleNavTo('/pages/notice/notice')"
         ></mix-list-cell>
-        <mix-list-cell icon="icon-pingjia" iconColor="#ee883b" title="我的评价"></mix-list-cell>
         <mix-list-cell
           icon="icon-shezhi1"
           iconColor="#e07472"

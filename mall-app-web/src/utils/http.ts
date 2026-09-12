@@ -23,11 +23,13 @@ const httpInterceptor = {
       'source-client': 'miniapp',
       ...options.header,
     }
-    // 4.添加 token（从 storage 获取）
+    // 4.仅为需要身份的请求添加 token；注册等公开接口必须忽略本地残留 token
+    const requestOptions = options as HttpRequestOptions
     const token = uni.getStorageSync('token')
-    if (token) {
+    if (requestOptions.auth !== false && token) {
       options.header.Authorization = token
     }
+    delete requestOptions.auth
   },
 }
 
@@ -63,6 +65,8 @@ const buildQueryString = (params: Record<string, any>): string => {
 export interface HttpRequestOptions extends UniApp.RequestOptions {
   /** 查询参数（会自动拼接到 URL 后面） */
   params?: Record<string, any>
+  /** 是否携带登录 token，公开接口应设为 false */
+  auth?: boolean
 }
 
 /**

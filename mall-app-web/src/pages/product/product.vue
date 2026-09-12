@@ -99,8 +99,12 @@
       <view class="e-header">
         <text class="tit">评价</text>
         <text>({{ commentTotal }})</text>
-        <text class="tip">好评率 {{ goodCommentRate }}% · 平均 {{ averageCommentStar }}分</text>
+        <text class="comment-action" @click="handleGoToComment">
+          去评价
+          <text class="yticon icon-you"></text>
+        </text>
       </view>
+      <text class="comment-summary">好评率 {{ goodCommentRate }}% · 平均 {{ averageCommentStar }}分</text>
       <view class="eva-box" v-for="item in commentList" :key="item.id">
         <image
           class="portrait"
@@ -108,7 +112,7 @@
           mode="aspectFill"
         ></image>
         <view class="right">
-          <text class="name">{{ item.memberNickName }}</text>
+          <text class="name">{{ item.memberNickName }} <text class="review-star">{{ '★'.repeat(Math.max(0, Math.min(5, item.star || 0))) }}</text></text>
           <text class="con">{{ item.content }}</text>
           <view class="comment-pics" v-if="splitCommentPics(item.pics).length">
             <image
@@ -120,12 +124,35 @@
             />
           </view>
           <view class="bot">
-            <text class="attr">{{ item.productAttribute || '已购买' }}</text>
+            <text class="attr">已购买 · {{ formatCommentAttribute(item.productAttribute) }}</text>
             <text class="time">{{ formatDateTime(item.createTime) }}</text>
+          </view>
+          <view class="comment-actions">
+            <button :class="{ liked: isCommentLiked(item.id) }" :disabled="likePending[item.id]" @click.stop="handleLikeComment(item)">{{ isCommentLiked(item.id) ? '已赞' : '点赞' }} {{ likeCount(item) }}</button>
+            <button @click.stop="toggleReplies(item.id)">{{ expandedReplies[item.id] ? '收起回复' : '回复' }} ({{ item.replayCount || 0 }})</button>
+            <button v-if="isOwnComment(item.memberId)" class="delete-action" :disabled="deletePending[item.id]" @click.stop="handleDeleteComment(item)">删除</button>
+          </view>
+          <view v-if="expandedReplies[item.id]" class="reply-panel">
+            <view v-for="reply in replyList[item.id] || []" :key="reply.id" class="reply-item">
+              <text class="reply-author">{{ reply.memberNickName }}：</text>
+              <text class="reply-content">{{ reply.content }}</text>
+              <view class="reply-meta">
+                <text>{{ formatDateTime(reply.createTime) }}</text>
+                <button v-if="isOwnComment(reply.memberId)" class="reply-delete" :disabled="replyPending[item.id] || replyLoading[item.id]" @click.stop="handleDeleteReply(item.id, reply)">删除</button>
+              </view>
+            </view>
+            <text v-if="!replyLoading[item.id] && !replyList[item.id]?.length" class="reply-empty">还没有回复，欢迎参与讨论</text>
+            <button v-if="replyLoading[item.id] || (replyList[item.id]?.length || 0) < (item.replayCount || 0)" class="more-comments" :disabled="replyLoading[item.id]" @click="loadReplies(item.id, false)">{{ replyLoading[item.id] ? '加载中…' : '查看更多回复' }}</button>
+            <view v-if="memberStore.hasLogin" class="reply-input-row">
+              <input v-model="replyInput[item.id]" placeholder="说点什么" maxlength="1000" />
+              <button size="mini" :disabled="replyPending[item.id] || replyLoading[item.id] || !replyInput[item.id]?.trim()" @click.stop="handleReply(item.id)">{{ replyPending[item.id] ? '发送中' : '发送' }}</button>
+            </view>
+            <button v-else class="reply-login" @click="handleCheckLogin">登录后参与讨论</button>
           </view>
         </view>
       </view>
-      <view class="empty-comment" v-if="commentList.length === 0">暂无评价，购买后欢迎分享体验</view>
+      <view class="empty-comment" v-if="!commentsLoading && commentList.length === 0">暂无评价，购买并完成订单后欢迎分享体验</view>
+      <button v-if="commentsLoading || commentList.length < commentTotal" class="more-comments" :disabled="commentsLoading" @click="loadMoreComments">{{ commentsLoading ? '加载中…' : '查看更多评价' }}</button>
     </view>
 
     <!-- 品牌信息 -->
@@ -262,11 +289,17 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { onLoad, onPageScroll } from '@dcloudio/uni-app'
+import { onLoad, onShow, onPageScroll } from '@dcloudio/uni-app'
 import {
   getProductDetailAPI,
   getProductCommentsAPI,
   getProductCommentSummaryAPI,
+  getCommentRepliesAPI,
+  createCommentReplyAPI,
+  deleteCommentReplyAPI,
+  toggleCommentLikeAPI,
+  deleteCommentAPI,
+  getCommentPurchaseAPI,
   resolveProductMediaUrl,
 } from '@/apis/product'
 import { addCartAPI } from '@/apis/cart'
@@ -289,6 +322,7 @@ import type {
   ServiceItem,
   ShareItem,
   PmsComment,
+  PmsCommentReply,
 } from '@/types/product'
 import type { PmsBrand } from '@/types/brand'
 import type { SmsCoupon } from '@/types/coupon'
@@ -362,6 +396,20 @@ const commentList = ref<PmsComment[]>([])
 const commentTotal = ref(0)
 const goodCommentRate = ref(0)
 const averageCommentStar = ref(0)
+const replyList = ref<Record<number, PmsCommentReply[]>>({})
+const expandedReplies = ref<Record<number, boolean>>({})
+const replyInput = ref<Record<number, string>>({})
+const likedComments = ref<Record<number, boolean>>({})
+const commentLikeCounts = ref<Record<number, number>>({})
+const commentsPage = ref(1)
+const commentsLoading = ref(false)
+let commentsRequestVersion = 0
+const replyPages = ref<Record<number, number>>({})
+const replyLoading = ref<Record<number, boolean>>({})
+const replyPending = ref<Record<number, boolean>>({})
+const likePending = ref<Record<number, boolean>>({})
+const deletePending = ref<Record<number, boolean>>({})
+const findingCommentPurchase = ref(false)
 
 // 格式化时间（保留到秒）
 const formatDateTime = (time: string | null | undefined): string => {
@@ -444,17 +492,159 @@ onLoad((options) => {
 })
 
 const loadComments = async (id: number) => {
+  const version = ++commentsRequestVersion
+  commentsLoading.value = true
   try {
     const [commentRes, summaryRes] = await Promise.all([
-      getProductCommentsAPI(id, 1, 3),
+      getProductCommentsAPI(id, 1, 5),
       getProductCommentSummaryAPI(id),
     ])
+    if (version !== commentsRequestVersion) return
     commentList.value = commentRes.data?.list || []
+    commentsPage.value = 1
+    expandedReplies.value = {}
+    replyList.value = {}
+    syncCommentInteractions(commentList.value)
     commentTotal.value = summaryRes.data?.totalCount || 0
     goodCommentRate.value = summaryRes.data?.goodRate || 0
     averageCommentStar.value = summaryRes.data?.averageStar || 0
   } catch (error) {
     console.error('加载商品评价失败:', error)
+  } finally {
+    if (version === commentsRequestVersion) commentsLoading.value = false
+  }
+}
+
+onShow(() => {
+  if (product.value.id) loadComments(product.value.id)
+})
+
+const syncCommentInteractions = (comments: PmsComment[]) => {
+  comments.forEach((comment) => {
+    likedComments.value[comment.id] = !!comment.liked
+    commentLikeCounts.value[comment.id] = comment.collectCouont || 0
+  })
+}
+
+const loadMoreComments = async () => {
+  if (commentsLoading.value || commentList.value.length >= commentTotal.value) return
+  const version = ++commentsRequestVersion
+  commentsLoading.value = true
+  try {
+    const result = await getProductCommentsAPI(product.value.id, commentsPage.value + 1, 5)
+    if (version !== commentsRequestVersion) return
+    const incoming = result.data?.list || []
+    const ids = new Set(commentList.value.map((comment) => comment.id))
+    commentList.value.push(...incoming.filter((comment) => !ids.has(comment.id)))
+    syncCommentInteractions(incoming)
+    commentTotal.value = result.data.total
+    commentsPage.value += 1
+  } catch (error) {
+    console.error('加载更多评价失败:', error)
+  } finally {
+    if (version === commentsRequestVersion) commentsLoading.value = false
+  }
+}
+
+const isOwnComment = (memberId?: number) => !!memberId && Number(memberStore.memberInfo?.id) === Number(memberId)
+const isCommentLiked = (commentId: number) => !!likedComments.value[commentId]
+const likeCount = (comment: PmsComment) => commentLikeCounts.value[comment.id] ?? comment.collectCouont ?? 0
+const formatCommentAttribute = (value?: string) => {
+  if (!value) return '购买体验'
+  try {
+    return (JSON.parse(value) as { key: string; value: string }[]).map((attr) => `${attr.key}：${attr.value}`).join('；')
+  } catch { return value }
+}
+
+const loadReplies = async (commentId: number, reset = true) => {
+  if (replyLoading.value[commentId]) return
+  replyLoading.value[commentId] = true
+  try {
+    const page = reset ? 1 : (replyPages.value[commentId] || 0) + 1
+    const result = await getCommentRepliesAPI(commentId, page, 5)
+    const previous = reset ? [] : replyList.value[commentId] || []
+    const ids = new Set(previous.map((reply) => reply.id))
+    replyList.value[commentId] = [...previous, ...result.data.list.filter((reply) => !ids.has(reply.id))]
+    replyPages.value[commentId] = page
+    const comment = commentList.value.find((item) => item.id === commentId)
+    if (comment) comment.replayCount = result.data.total
+  } catch (error) {
+    console.error('加载回复失败:', error)
+  } finally {
+    replyLoading.value[commentId] = false
+  }
+}
+
+const toggleReplies = async (commentId: number) => {
+  expandedReplies.value[commentId] = !expandedReplies.value[commentId]
+  if (expandedReplies.value[commentId]) await loadReplies(commentId)
+}
+
+const handleLikeComment = async (comment: PmsComment) => {
+  if (!memberStore.hasLogin) { handleCheckLogin(); return }
+  if (likePending.value[comment.id]) return
+  likePending.value[comment.id] = true
+  try {
+    const result = await toggleCommentLikeAPI(comment.id)
+    likedComments.value[comment.id] = result.data.liked
+    commentLikeCounts.value[comment.id] = result.data.likeCount
+  } catch (error) {
+    console.error('评价点赞失败:', error)
+  } finally {
+    likePending.value[comment.id] = false
+  }
+}
+
+const handleReply = async (commentId: number) => {
+  if (!memberStore.hasLogin) { handleCheckLogin(); return }
+  const content = replyInput.value[commentId]?.trim()
+  if (!content || replyPending.value[commentId] || replyLoading.value[commentId]) return
+  replyPending.value[commentId] = true
+  try {
+    await createCommentReplyAPI(commentId, content)
+    replyInput.value[commentId] = ''
+    await loadReplies(commentId)
+    uni.showToast({ title: '回复成功', icon: 'success' })
+  } catch (error) {
+    console.error('回复评价失败:', error)
+  } finally {
+    replyPending.value[commentId] = false
+  }
+}
+
+const confirmCommentDeletion = (content: string) => new Promise<boolean>((resolve) => {
+  uni.showModal({ title: '删除确认', content, confirmText: '删除', success: (result) => resolve(result.confirm), fail: () => resolve(false) })
+})
+
+const handleDeleteComment = async (comment: PmsComment) => {
+  if (!isOwnComment(comment.memberId) || deletePending.value[comment.id]) return
+  deletePending.value[comment.id] = true
+  try {
+    if (!await confirmCommentDeletion('删除后，这条评价及其回复将不再展示，且该购买不能重新评价。确定删除？')) return
+    await deleteCommentAPI(comment.id)
+    commentList.value = commentList.value.filter((item) => item.id !== comment.id)
+    commentTotal.value = Math.max(0, commentTotal.value - 1)
+    await loadComments(product.value.id)
+    uni.showToast({ title: '评价已删除', icon: 'success' })
+  } catch (error) {
+    console.error('删除评价失败:', error)
+  } finally {
+    deletePending.value[comment.id] = false
+  }
+}
+
+const handleDeleteReply = async (commentId: number, reply: PmsCommentReply) => {
+  if (!isOwnComment(reply.memberId) || replyPending.value[commentId] || replyLoading.value[commentId]) return
+  replyPending.value[commentId] = true
+  try {
+    if (!await confirmCommentDeletion('确定删除自己的这条回复？')) return
+    await deleteCommentReplyAPI(reply.id)
+    await loadReplies(commentId)
+    uni.showToast({ title: '回复已删除', icon: 'success' })
+  } catch (error) {
+    console.error('删除回复失败:', error)
+  } finally {
+    replyPending.value[commentId] = false
   }
 }
 
@@ -913,6 +1103,28 @@ const handleNavToBrandDetail = () => {
   })
 }
 
+// 只定位当前商品尚未评价的一次已完成购买。
+const handleGoToComment = async () => {
+  if (!memberStore.hasLogin) {
+    handleCheckLogin()
+    return
+  }
+  if (findingCommentPurchase.value) return
+  findingCommentPurchase.value = true
+  try {
+    const result = await getCommentPurchaseAPI(product.value.id)
+    if (!result.data) {
+      uni.showToast({ title: '暂无可评价购买，请完成订单后再评价（每次购买限一次）', icon: 'none', duration: 3000 })
+      return
+    }
+    uni.navigateTo({ url: `/pages/order/comment?orderId=${result.data.orderId}&orderItemId=${result.data.orderItemId}` })
+  } catch (error) {
+    console.error('获取可评价购买失败:', error)
+  } finally {
+    findingCommentPurchase.value = false
+  }
+}
+
 // 检查登录状态
 const handleCheckLogin = () => {
   uni.showModal({
@@ -1187,6 +1399,31 @@ page {
 }
 
 /* 评价 */
+.review-star { color: #f5a623; font-size: 22rpx; margin-left: 12rpx; }
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  padding-top: 20rpx;
+  button { margin: 0; padding: 4rpx 0; line-height: 1.5; color: #777; background: transparent; font-size: 24rpx; }
+  button::after { border: none; }
+  .liked { color: #fa436a; }
+  .delete-action { margin-left: auto; }
+}
+.reply-panel { padding: 18rpx; margin-top: 16rpx; background: #f7f8fa; border-radius: 12rpx; }
+.reply-item { padding: 12rpx 0; border-bottom: 1rpx solid #eee; font-size: 25rpx; line-height: 1.7; overflow-wrap: anywhere; }
+.reply-author { color: #555; font-weight: 500; }
+.reply-content { color: #333; white-space: pre-wrap; }
+.reply-meta { display: flex; align-items: center; justify-content: space-between; color: #999; font-size: 20rpx; }
+.reply-delete { margin: 0; padding: 4rpx; font-size: 22rpx; color: #888; background: transparent; line-height: 1.5; }
+.reply-delete::after { border: none; }
+.reply-input-row { display: flex; gap: 12rpx; align-items: center; margin-top: 20rpx; }
+.reply-input-row input { flex: 1; min-width: 0; padding: 14rpx; border-radius: 8rpx; background: #fff; font-size: 25rpx; }
+.reply-input-row button { flex-shrink: 0; margin: 0; color: #fff; background: #fa436a; border-radius: 8rpx; }
+.reply-input-row button[disabled] { background: #e5e5e5; color: #999; }
+.reply-empty { font-size: 24rpx; color: #999; }
+.more-comments, .reply-login { margin: 18rpx 0 0; padding: 8rpx 0; color: #777; background: transparent; font-size: 25rpx; line-height: 1.5; }
+.more-comments::after, .reply-login::after { border: none; }
 .eva-section {
   display: flex;
   flex-direction: column;
@@ -1207,14 +1444,24 @@ page {
       margin-right: 4rpx;
     }
 
-    .tip {
-      flex: 1;
-      text-align: right;
+    .comment-action {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      margin-left: auto;
+      color: $uni-color-primary;
+      font-size: $font-sm + 2rpx;
     }
 
     .icon-you {
-      margin-left: 10rpx;
+      margin-left: 6rpx;
     }
+  }
+
+  .comment-summary {
+    color: $font-color-light;
+    font-size: $font-sm;
+    line-height: 40rpx;
   }
 }
 
@@ -1231,6 +1478,7 @@ page {
 
   .right {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     font-size: $font-base;

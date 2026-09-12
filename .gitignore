@@ -26,3 +26,9 @@ output/
 doc-work/
 .playwright-cli/
 .nested-git-backup/
+
+# Machine-specific credentials; publish templates only.
+.env
+.env.local
+.env.*.local
+scripts/configure-local.ps1

@@ -415,6 +415,10 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
     @Override
     @Transactional
     public CommonPage<OmsOrderDetail> list(Integer status, Integer pageNum, Integer pageSize) {
+        if (status == null || status < -1 || status > 4 || pageNum == null || pageNum < 1
+                || pageSize == null || pageSize < 1 || pageSize > 100) {
+            Asserts.fail("订单查询参数无效：页码至少为1，每页1至100条，状态为-1至4");
+        }
         // 开发环境不依赖 RabbitMQ，查询订单前同步清理超时订单作为兜底。
         cancelTimeOutOrder();
         if(status==-1){
@@ -439,6 +443,7 @@ public class OmsPortalOrderServiceImpl implements OmsPortalOrderService {
         resultPage.setTotal(orderPage.getTotal());
         resultPage.setTotalPage(orderPage.getTotalPage());
         if(CollUtil.isEmpty(orderList)){
+            resultPage.setList(Collections.emptyList());
             return resultPage;
         }
         //设置数据信息

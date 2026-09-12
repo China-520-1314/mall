@@ -36,7 +36,7 @@ public class CiyuanshenClient {
                 .connectTimeout(Duration.ofSeconds(Math.max(1, properties.getTimeoutSeconds())))
                 // 词元神网关当前对 HTTP/2 协商在部分本地 JDK 环境下不稳定，统一使用 HTTP/1.1。
                 .version(HttpClient.Version.HTTP_1_1)
-                .followRedirects(HttpClient.Redirect.NORMAL)
+                .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
 
@@ -47,7 +47,7 @@ public class CiyuanshenClient {
     /**
      * 调用 Chat Completions API 并提取纯文本答复。
      */
-    public String complete(String instructions, String input) {
+    public String complete(String instructions, String input, List<AssistantHistoryMessage> history) {
         if (!isConfigured()) {
             throw new AssistantClientException("模型服务未配置");
         }
@@ -55,10 +55,14 @@ public class CiyuanshenClient {
         String endpoint = normalizeBaseUrl(properties.getBaseUrl()) + "/chat/completions";
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", properties.getModel());
-        payload.put("messages", List.of(
-                Map.of("role", "system", "content", instructions),
-                Map.of("role", "user", "content", input)
-        ));
+        List<Map<String, String>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", instructions));
+        for (AssistantHistoryMessage item : history) {
+            messages.add(Map.of("role", item.role(), "content", item.content()));
+        }
+        messages.add(Map.of("role", "user", "content", input));
+        payload.put("messages", messages);
+        payload.put("max_completion_tokens", properties.getMaxOutputTokens());
         payload.put("stream", false);
 
         final String requestBody;
@@ -87,12 +91,8 @@ public class CiyuanshenClient {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
             );
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                String responseBody = response.body();
-                if (responseBody != null && responseBody.length() > 300) {
-                    responseBody = responseBody.substring(0, 300);
-                }
-                LOGGER.warn("词元神请求失败，HTTP 状态码：{}，响应摘要：{}",
-                        response.statusCode(), responseBody);
+                // 不记录上游响应正文，避免错误信息回显用户内容或凭证。
+                LOGGER.warn("词元神请求失败，HTTP 状态码：{}", response.statusCode());
                 throw new AssistantClientException("模型服务暂时不可用（HTTP " + response.statusCode() + "）");
             }
             String text = extractText(response.body());
@@ -129,8 +129,11 @@ public class CiyuanshenClient {
     private String extractText(String body) {
         try {
             JsonNode root = objectMapper.readTree(body);
+            if (root == null || !root.isObject()) {
+                throw new AssistantClientException("模型服务返回格式异常");
+            }
             String outputText = textValue(root.get("output_text"));
-            if (outputText != null) {
+            if (outputText != null && !outputText.isBlank()) {
                 return outputText;
             }
 

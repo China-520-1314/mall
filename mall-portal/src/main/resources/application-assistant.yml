@@ -1,2 +1,10 @@
 server:
   port: ${ASSISTANT_PORT:8085}
+
+# 独立问答不依赖数据库；模型不可用时由基础问答兜底。
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: ping

@@ -11,6 +11,8 @@ target/
 .project
 
 # Local development artifacts
+mall.local.env
+runtime/
 node_modules/
 dist/
 unpackage/

@@ -87,4 +87,56 @@ class OmsPortalOrderServiceImplTest {
         when(memberService.getCurrentMember()).thenReturn(currentMember);
         when(orderMapper.selectByPrimaryKey(11L)).thenReturn(anotherMembersOrder);
     }
+
+    @Test
+    void rejectsInvalidPaginationBeforeDatabaseQuery() {
+        for (Integer size : new Integer[]{null, 0, -1, 101}) {
+            assertThrows(ApiException.class, () -> service.list(-1, 1, size));
+        }
+        assertThrows(ApiException.class, () -> service.list(5, 1, 10));
+        assertThrows(ApiException.class, () -> service.list(-1, 0, 10));
+        verify(orderMapper, never()).selectByExample(any());
+    }
+
+    @Test
+    void returnsEmptyListForMemberWithoutOrders() {
+        UmsMember member = new UmsMember();
+        member.setId(7L);
+        when(memberService.getCurrentMember()).thenReturn(member);
+        when(orderMapper.selectByExample(any())).thenReturn(java.util.Collections.emptyList());
+        try {
+            assertEquals(java.util.Collections.emptyList(), service.list(-1, 1, 5).getList());
+        } finally {
+            com.github.pagehelper.PageHelper.clearPage();
+        }
+        verify(orderItemMapper, never()).selectByExample(any());
+    }
+
+    @Test
+    void returnsOwnOrderDetail() {
+        prepareAnotherMembersOrder();
+        OmsOrder order = orderMapper.selectByPrimaryKey(11L);
+        order.setMemberId(7L);
+        when(orderItemMapper.selectByExample(any())).thenReturn(java.util.Collections.emptyList());
+        assertEquals(11L, service.detail(11L).getId());
+    }
+
+    @Test
+    void rejectsDeletedOrderEvenWhenOwned() {
+        prepareAnotherMembersOrder();
+        OmsOrder order = orderMapper.selectByPrimaryKey(11L);
+        order.setMemberId(7L);
+        order.setDeleteStatus(1);
+        assertThrows(ApiException.class, () -> service.detail(11L));
+        verify(orderItemMapper, never()).selectByExample(any());
+    }
+
+    @Test
+    void rejectsMissingOrder() {
+        UmsMember member = new UmsMember();
+        member.setId(7L);
+        when(memberService.getCurrentMember()).thenReturn(member);
+        assertThrows(ApiException.class, () -> service.detail(99L));
+        verify(orderItemMapper, never()).selectByExample(any());
+    }
 }

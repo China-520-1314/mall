@@ -13,13 +13,18 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Profile("assistant")
 public class AssistantWebConfiguration {
 
+    /** 受信任的本地 H5 页面来源，供 CORS 配置与 {@link AssistantRequestFilter} 共用。 */
+    public static final String[] LOCAL_ORIGINS = {
+            "http://localhost:5173", "http://127.0.0.1:5173"
+    };
+
     @Bean
     public WebMvcConfigurer assistantCorsConfigurer() {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/assistant/**")
-                        .allowedOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+                        .allowedOrigins(LOCAL_ORIGINS)
                         .allowedMethods("POST", "OPTIONS")
                         .allowedHeaders("*")
                         .maxAge(3600);

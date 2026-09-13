@@ -5,13 +5,8 @@ import type {
   PmsComment,
   ProductCommentBatchParam,
   ProductCommentSummary,
-  PmsCommentReply,
-  ProductCommentLikeResult,
-  MyProductComment,
-  ReceivedCommentReply,
 } from '@/types/product'
 import type { CategoryTreeNode, ProductListParam, PmsPortalProductDetail } from '@/types/product'
-import type { OmsOrderItem } from '@/types/order'
 
 /** 商品分类树 */
 export const getCategoryTreeAPI = () => {
@@ -88,50 +83,6 @@ export const uploadCommentImageAPI = (filePath: string) => {
     })
   })
 }
-
-/** 获取评价回复 */
-export const getCommentRepliesAPI = (commentId: number, pageNum = 1, pageSize = 10) =>
-  http<CommonPage<PmsCommentReply>>({ method: 'GET', url: `/product/comments/${commentId}/replies`, params: { pageNum, pageSize } })
-
-/** 回复评价 */
-export const createCommentReplyAPI = (commentId: number, content: string) =>
-  http({ method: 'POST', url: `/product/comments/${commentId}/replies`, data: { content } })
-
-/** 删除自己的回复 */
-export const deleteCommentReplyAPI = (replyId: number) =>
-  http({ method: 'DELETE', url: `/product/comments/replies/${replyId}` })
-
-/** 点赞或取消点赞评价 */
-export const toggleCommentLikeAPI = (commentId: number) =>
-  http<ProductCommentLikeResult>({ method: 'POST', url: `/product/comments/${commentId}/like` })
-
-/** 删除自己的评价 */
-export const deleteCommentAPI = (commentId: number) =>
-  http({ method: 'DELETE', url: `/product/comments/${commentId}` })
-
-/** 当前商品最近一笔可评价的已完成购买 */
-export const getCommentPurchaseAPI = (productId: number) =>
-  http<{ orderId: number; orderItemId: number } | null>({ method: 'GET', url: `/product/${productId}/commentPurchase` })
-
-/** 当前订单尚未评价的商品，后端校验订单归属和完成状态 */
-export const getUncommentedOrderItemsAPI = (orderId: number) =>
-  http<OmsOrderItem[]>({ method: 'GET', url: `/product/comment/order/${orderId}/items` })
-
-/** 当前用户发布的评价。 */
-export const getMyProductCommentsAPI = (pageNum = 1, pageSize = 10) =>
-  http<CommonPage<MyProductComment>>({
-    method: 'GET',
-    url: '/product/comments/mine',
-    params: { pageNum, pageSize },
-  })
-
-/** 他人对当前用户评价的回复。 */
-export const getReceivedCommentRepliesAPI = (pageNum = 1, pageSize = 10) =>
-  http<CommonPage<ReceivedCommentReply>>({
-    method: 'GET',
-    url: '/product/comments/replies/mine',
-    params: { pageNum, pageSize },
-  })
 
 /** 将后端相对资源地址转换为浏览器可访问地址 */
 export const resolveProductMediaUrl = (url: string) =>

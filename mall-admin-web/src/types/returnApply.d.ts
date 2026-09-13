@@ -23,7 +23,7 @@ export type OmsOrderReturnApply = {
   returnName: string
   /** 退货人电话 */
   returnPhone: string
-  /** 申请状态：0->待处理；1->退货中；2->已完成；3->已拒绝 */
+  /** 申请状态：0->待处理；1->退货中；2->已完成；3->已拒绝；4->待收货；5->已取消 */
   status: number
   /** 处理时间 */
   handleTime: string
@@ -57,6 +57,24 @@ export type OmsOrderReturnApply = {
   receiveTime: string
   /** 收货备注 */
   receiveNote: string
+  /** 会员寄回快递公司 */
+  returnDeliveryCompany?: string
+  /** 会员寄回快递单号 */
+  returnDeliverySn?: string
+  /** 会员寄回时间 */
+  shipTime?: string
+}
+
+/** 售后进度日志 */
+export type OmsOrderReturnApplyLog = {
+  id: number
+  applyId: number
+  status: number
+  title: string
+  note?: string
+  operatorType: number
+  operatorName: string
+  createTime: string
 }
 
 /** 退货申请查询参数 */
@@ -79,6 +97,8 @@ export type ReturnApplyQueryParam = PageParam & {
 export type OmsOrderReturnApplyResult = OmsOrderReturnApply & {
   /** 公司收货地址 */
   companyAddress: OmsCompanyAddress
+  /** 售后进度日志 */
+  logList?: OmsOrderReturnApplyLog[]
 }
 
 /** 退货申请状态更新参数 */

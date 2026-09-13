@@ -81,7 +81,12 @@
           <text class="yticon icon-yishouhuo"></text>
           <text>待收货</text>
         </view>
-        <view class="order-item" hover-class="common-hover" :hover-stay-time="50">
+        <view
+          class="order-item"
+          hover-class="common-hover"
+          :hover-stay-time="50"
+          @click="handleNavTo('/pages/order/returnList')"
+        >
           <text class="yticon icon-shouhoutuikuan"></text>
           <text>退款/售后</text>
         </view>
@@ -112,18 +117,7 @@
           title="我的收藏"
           @eventClick="handleNavTo('/pages/user/productCollection')"
         ></mix-list-cell>
-        <mix-list-cell
-          icon="icon-pingjia"
-          iconColor="#f39c5a"
-          title="我的评价"
-          @eventClick="handleNavTo('/pages/user/myComments')"
-        ></mix-list-cell>
-        <mix-list-cell
-          icon="icon-xiaoxi"
-          iconColor="#54b4ef"
-          title="消息通知"
-          @eventClick="handleNavTo('/pages/notice/notice')"
-        ></mix-list-cell>
+        <mix-list-cell icon="icon-pingjia" iconColor="#ee883b" title="我的评价"></mix-list-cell>
         <mix-list-cell
           icon="icon-shezhi1"
           iconColor="#e07472"

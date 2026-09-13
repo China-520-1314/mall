@@ -6,14 +6,12 @@ import com.macro.mall.model.PmsProduct;
 import com.macro.mall.model.PmsProductCategory;
 import com.macro.mall.portal.domain.HomeContentResult;
 import com.macro.mall.portal.service.HomeService;
-import com.macro.mall.portal.service.UmsMemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.List;
 
 /**
@@ -26,8 +24,6 @@ import java.util.List;
 public class HomeController {
     @Autowired
     private HomeService homeService;
-    @Autowired
-    private UmsMemberService memberService;
 
     @Operation(summary = "首页内容信息展示")
     @RequestMapping(value = "/content", method = RequestMethod.GET)
@@ -44,21 +40,6 @@ public class HomeController {
                                                                @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
         List<PmsProduct> productList = homeService.recommendProductList(pageSize, pageNum);
         return CommonResult.success(productList);
-    }
-
-    @Operation(summary = "根据用户行为获取个性化推荐商品")
-    @RequestMapping(value = "/personalizedProductList", method = RequestMethod.GET)
-    @ResponseBody
-    public CommonResult<List<PmsProduct>> personalizedProductList(
-            @RequestParam(value = "pageSize", defaultValue = "8") Integer pageSize,
-            @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
-            Principal principal) {
-        Long memberId = null;
-        if (principal != null) {
-            com.macro.mall.model.UmsMember member = memberService.getByUsername(principal.getName());
-            memberId = member == null ? null : member.getId();
-        }
-        return CommonResult.success(homeService.personalizedProductList(memberId, pageSize, pageNum));
     }
 
     @Operation(summary = "获取首页商品分类")

@@ -1,34 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.macro.mall.portal.dao.PortalOrderDao">
-    <select id="lockOrder" resultMap="com.macro.mall.mapper.OmsOrderMapper.BaseResultMap">
-        SELECT * FROM oms_order WHERE id = #{orderId} FOR UPDATE
-    </select>
-
-    <update id="reserveSkuStock">
-        UPDATE pms_sku_stock SET lock_stock = COALESCE(lock_stock, 0) + #{quantity}
-        WHERE id = #{skuId} AND stock - COALESCE(lock_stock, 0) &gt;= #{quantity}
-    </update>
-
-    <update id="adjustMemberIntegration">
-        UPDATE ums_member SET integration = COALESCE(integration, 0) + #{delta}
-        WHERE id = #{memberId} AND COALESCE(integration, 0) + #{delta} &gt;= 0
-    </update>
-
-    <update id="useCoupon">
-        UPDATE sms_coupon_history
-        SET use_status = 1, use_time = NOW(), order_id = #{order.id}, order_sn = #{order.orderSn}
-        WHERE member_id = #{order.memberId} AND coupon_id = #{order.couponId} AND use_status = 0
-        ORDER BY id LIMIT 1
-    </update>
-
-    <update id="restoreCoupon">
-        UPDATE sms_coupon_history
-        SET use_status = 0, use_time = NULL, order_id = NULL, order_sn = NULL
-        WHERE member_id = #{order.memberId} AND coupon_id = #{order.couponId} AND use_status = 1
-          AND order_id = #{order.id}
-    </update>
-
     <resultMap id="orderDetailMap" type="com.macro.mall.portal.domain.OmsOrderDetail"
                extends="com.macro.mall.mapper.OmsOrderMapper.BaseResultMap">
         <collection property="orderItemList" columnPrefix="ot_"
@@ -99,11 +71,6 @@
             WHEN #{item.productSkuId} THEN #{item.productQuantity}
         </foreach>
         END
-        AND lock_stock >= CASE id
-        <foreach collection="itemList" item="item">
-            WHEN #{item.productSkuId} THEN #{item.productQuantity}
-        </foreach>
-        END
     </update>
     <update id="updateOrderStatus">
         update oms_order
@@ -123,23 +90,6 @@
         END
         WHERE
         id IN
-        <foreach collection="itemList" item="item" separator="," open="(" close=")">
-            #{item.productSkuId}
-        </foreach>
-        AND lock_stock &gt;= CASE id
-        <foreach collection="itemList" item="item">
-            WHEN #{item.productSkuId} THEN #{item.productQuantity}
-        </foreach>
-        END
-    </update>
-    <update id="restoreSkuStock">
-        UPDATE pms_sku_stock
-        SET stock = CASE id
-        <foreach collection="itemList" item="item">
-            WHEN #{item.productSkuId} THEN stock + #{item.productQuantity}
-        </foreach>
-        END
-        WHERE id IN
         <foreach collection="itemList" item="item" separator="," open="(" close=")">
             #{item.productSkuId}
         </foreach>

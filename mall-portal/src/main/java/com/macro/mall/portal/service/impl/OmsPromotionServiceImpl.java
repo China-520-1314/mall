@@ -169,6 +169,11 @@ public class OmsPromotionServiceImpl implements OmsPromotionService {
             PmsSkuStock skuStock = getOriginalPrice(promotionProduct,item.getProductSkuId());
             if(skuStock!=null){
                 cartPromotionItem.setRealStock(skuStock.getStock()-skuStock.getLockStock());
+                //无优惠时单价取SKU原价，避免立即购买场景下购物车项未设置价格导致空指针
+                cartPromotionItem.setPrice(skuStock.getPrice());
+            }
+            if(cartPromotionItem.getPrice()==null){
+                cartPromotionItem.setPrice(promotionProduct.getPrice());
             }
             cartPromotionItem.setIntegration(promotionProduct.getGiftPoint());
             cartPromotionItem.setGrowth(promotionProduct.getGiftGrowth());

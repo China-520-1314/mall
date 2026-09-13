@@ -3,8 +3,6 @@ package com.macro.mall.portal.controller;
 import com.macro.mall.common.api.CommonResult;
 import com.macro.mall.model.UmsMember;
 import com.macro.mall.portal.domain.EmailCodePurpose;
-import com.macro.mall.portal.domain.EmailCodeSendResult;
-import com.macro.mall.portal.domain.EmailCodeRateLimitException;
 import com.macro.mall.portal.service.UmsMemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,8 +18,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
-import jakarta.validation.constraints.NotBlank;
-import org.springframework.validation.annotation.Validated;
 
 /**
  * 会员管理Controller
@@ -30,7 +26,6 @@ import org.springframework.validation.annotation.Validated;
 @Controller
 @Tag(name = "UmsMemberController", description = "会员登录注册管理")
 @RequestMapping("/sso")
-@Validated
 public class UmsMemberController {
     @Value("${jwt.tokenHeader}")
     private String tokenHeader;
@@ -53,16 +48,10 @@ public class UmsMemberController {
     @Operation(summary = "发送QQ邮箱验证码")
     @RequestMapping(value = "/sendEmailCode", method = RequestMethod.POST)
     @ResponseBody
-    public CommonResult<EmailCodeSendResult> sendEmailCode(@RequestParam String email,
+    public CommonResult<Void> sendEmailCode(@RequestParam String email,
                                              @RequestParam EmailCodePurpose purpose) {
-        try {
-            return CommonResult.success(memberService.sendEmailCode(email, purpose), "验证码已发送，请查收QQ邮箱");
-        } catch (EmailCodeRateLimitException exception) {
-            CommonResult<EmailCodeSendResult> result = CommonResult.failed(exception.getMessage());
-            result.setCode(429);
-            result.setData(new EmailCodeSendResult(email, exception.getRetryAfterSeconds(), 0));
-            return result;
-        }
+        memberService.sendEmailCode(email, purpose);
+        return CommonResult.success(null, "验证码已发送，请查收QQ邮箱");
     }
 
     @Operation(summary = "通过邮箱验证码重置密码")
@@ -73,20 +62,6 @@ public class UmsMemberController {
                                               @RequestParam String authCode) {
         memberService.updatePassword(email, password, authCode);
         return CommonResult.success(null, "密码重置成功");
-    }
-
-    @Operation(summary = "修改当前登录会员密码")
-    @RequestMapping(value = "/changePassword", method = RequestMethod.POST)
-    @ResponseBody
-    public CommonResult<Void> changePassword(@RequestParam @NotBlank String oldPassword,
-                                              @RequestParam @NotBlank String newPassword,
-                                              @RequestParam @NotBlank String confirmPassword,
-                                              Principal principal) {
-        if (principal == null) {
-            return CommonResult.unauthorized(null);
-        }
-        memberService.changePassword(oldPassword, newPassword, confirmPassword);
-        return CommonResult.success(null, "密码修改成功，请重新登录");
     }
 
     @Operation(summary = "会员登录")

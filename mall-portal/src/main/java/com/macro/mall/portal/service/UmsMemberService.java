@@ -2,7 +2,6 @@ package com.macro.mall.portal.service;
 
 import com.macro.mall.model.UmsMember;
 import com.macro.mall.portal.domain.EmailCodePurpose;
-import com.macro.mall.portal.domain.EmailCodeSendResult;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,19 +29,13 @@ public interface UmsMemberService {
     /**
      * 发送注册或重置密码验证码
      */
-    EmailCodeSendResult sendEmailCode(String email, EmailCodePurpose purpose);
+    void sendEmailCode(String email, EmailCodePurpose purpose);
 
     /**
      * 通过邮箱验证码重置密码
      */
     @Transactional
     void updatePassword(String email, String password, String authCode);
-
-    /**
-     * 修改当前登录会员密码。
-     */
-    @Transactional
-    void changePassword(String oldPassword, String newPassword, String confirmPassword);
 
     /**
      * 获取当前登录会员

@@ -24,12 +24,6 @@ public interface HomeService {
     List<PmsProduct> recommendProductList(Integer pageSize, Integer pageNum);
 
     /**
-     * 根据会员浏览、收藏等行为返回个性化商品推荐。
-     * 未登录用户由实现返回热门/新品兜底结果。
-     */
-    List<PmsProduct> personalizedProductList(Long memberId, Integer pageSize, Integer pageNum);
-
-    /**
      * 获取商品分类
      * @param parentId 0:获取一级分类；其他：获取指定二级分类
      */

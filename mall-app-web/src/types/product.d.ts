@@ -234,7 +234,6 @@ export type PmsPortalProductDetail = {
 export type PmsComment = {
   id: number
   productId: number
-  memberId?: number
   memberNickName: string
   productName: string
   star: number
@@ -245,45 +244,6 @@ export type PmsComment = {
   pics?: string
   memberIcon?: string
   content: string
-  collectCouont?: number
-  replayCount?: number
-  liked?: boolean
-}
-
-export type PmsCommentReply = {
-  id: number
-  commentId: number
-  memberId?: number
-  memberNickName: string
-  memberIcon?: string
-  content: string
-  createTime: string
-  type?: number
-}
-
-/** 当前用户发布的评价，用于“我的评价”页面。 */
-export type MyProductComment = Pick<PmsComment,
-  'id' | 'productId' | 'productName' | 'star' | 'content' | 'pics' | 'createTime' | 'showStatus' | 'replayCount' | 'collectCouont'> & {
-  productPic?: string
-}
-
-/** 他人对当前用户评价的回复。 */
-export type ReceivedCommentReply = {
-  replyId: number
-  commentId: number
-  productId: number
-  productName: string
-  productPic?: string
-  commentContent: string
-  replyMemberNickName: string
-  replyMemberIcon?: string
-  replyContent: string
-  replyCreateTime: string
-}
-
-export type ProductCommentLikeResult = {
-  liked: boolean
-  likeCount: number
 }
 
 /** 商品评价聚合统计 */

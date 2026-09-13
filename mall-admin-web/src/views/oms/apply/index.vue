@@ -27,6 +27,14 @@ const defaultStatusOptions = [
   {
     label: '已拒绝',
     value: 3
+  },
+  {
+    label: '待收货',
+    value: 4
+  },
+  {
+    label: '已取消',
+    value: 5
   }
 ]
 

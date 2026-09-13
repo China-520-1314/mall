@@ -90,11 +90,17 @@ const formatStatus = (status: number) => {
   if (status === 0) {
     return "待处理"
   } else if (status === 1) {
-    return "退货中"
+    return "退货中（等待买家寄回）"
   } else if (status === 2) {
     return "已完成"
-  } else {
+  } else if (status === 3) {
     return "已拒绝"
+  } else if (status === 4) {
+    return "待收货（买家已寄回）"
+  } else if (status === 5) {
+    return "已取消"
+  } else {
+    return "未知"
   }
 }
 
@@ -306,7 +312,7 @@ const handleUpdateStatus = async (status: number) => {
           </el-col>
         </el-row>
       </div>
-      <div class="form-container-border" v-show="orderReturnApply.status === 1">
+      <div class="form-container-border" v-show="orderReturnApply.status === 4">
         <el-row>
           <el-col class="form-border form-left-bg font-small" :span="6"
             style="height:52px;line-height:32px">收货备注</el-col>
@@ -320,9 +326,43 @@ const handleUpdateStatus = async (status: number) => {
         <el-button type="primary" size="small" @click="handleUpdateStatus(1)">确认退货</el-button>
         <el-button type="danger" size="small" @click="handleUpdateStatus(3)">拒绝退货</el-button>
       </div>
-      <div style="margin-top:15px;text-align: center" v-show="orderReturnApply.status === 1">
-        <el-button type="primary" size="small" @click="handleUpdateStatus(2)">确认收货</el-button>
+      <div style="margin-top:15px;text-align: center" v-show="orderReturnApply.status === 4">
+        <el-button type="primary" size="small" @click="handleUpdateStatus(2)">确认收货并退款</el-button>
       </div>
+    </el-card>
+
+    <!-- 买家寄回物流 -->
+    <el-card shadow="never" class="standard-margin" v-show="orderReturnApply.status === 4 || orderReturnApply.status === 2">
+      <span class="font-title-medium">买家寄回物流</span>
+      <div class="form-container-border">
+        <el-row>
+          <el-col class="form-border form-left-bg font-small" :span="6">寄回快递公司</el-col>
+          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.returnDeliveryCompany }}</el-col>
+        </el-row>
+        <el-row>
+          <el-col class="form-border form-left-bg font-small" :span="6">寄回快递单号</el-col>
+          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.returnDeliverySn }}</el-col>
+        </el-row>
+        <el-row>
+          <el-col class="form-border form-left-bg font-small" :span="6">寄回时间</el-col>
+          <el-col class="form-border font-small" :span="18">{{ formatDateTime(orderReturnApply.shipTime) }}</el-col>
+        </el-row>
+      </div>
+    </el-card>
+
+    <!-- 售后进度时间线 -->
+    <el-card shadow="never" class="standard-margin" v-if="orderReturnApply.logList && orderReturnApply.logList.length">
+      <span class="font-title-medium">售后进度</span>
+      <el-timeline style="margin-top:20px">
+        <el-timeline-item v-for="log in [...orderReturnApply.logList].reverse()" :key="log.id"
+          :timestamp="formatDateTime(log.createTime)" placement="top" :type="log.operatorType === 1 ? 'primary' : 'success'">
+          <div style="font-weight:bold">{{ log.title }}</div>
+          <div v-if="log.note" style="color:#909399;font-size:12px;margin-top:4px">{{ log.note }}</div>
+          <div style="color:#c0c4cc;font-size:12px;margin-top:4px">
+            {{ log.operatorType === 0 ? '会员' : log.operatorType === 1 ? '商家' : '系统' }}：{{ log.operatorName }}
+          </div>
+        </el-timeline-item>
+      </el-timeline>
     </el-card>
   </div>
 </template>

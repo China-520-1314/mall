@@ -19,15 +19,6 @@
       <text class="cell-more yticon icon-you"></text>
     </view>
     <view
-      class="list-cell b-b"
-      @click="navTo('/pages/set/changePassword')"
-      hover-class="cell-hover"
-      :hover-stay-time="50"
-    >
-      <text class="cell-tit">修改密码</text>
-      <text class="cell-more yticon icon-you"></text>
-    </view>
-    <view
       class="list-cell"
       @click="navTo('实名认证')"
       hover-class="cell-hover"

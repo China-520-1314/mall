@@ -37,11 +37,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { getOrderDetailAPI } from '@/apis/order'
 import {
   createProductCommentsAPI,
   resolveProductMediaUrl,
   uploadCommentImageAPI,
-  getUncommentedOrderItemsAPI,
 } from '@/apis/product'
 import type { OmsOrderItem } from '@/types/order'
 
@@ -55,14 +55,13 @@ const submitting = ref(false)
 onLoad(async (options) => {
   orderId.value = Number(options?.orderId || 0)
   if (!orderId.value) return
-  try {
-    const res = await getUncommentedOrderItemsAPI(orderId.value)
-    const targetItemId = Number(options?.orderItemId || 0)
-    items.value = (res.data || []).filter((item) => !targetItemId || item.id === targetItemId)
-    forms.value = items.value.map(() => ({ star: 5, content: '', pics: [], uploading: false }))
-  } catch (error) {
-    console.error('加载可评价商品失败:', error)
+  const res = await getOrderDetailAPI(orderId.value)
+  if (res.data?.commentTime) {
+    uni.showToast({ title: '该订单已经评价', icon: 'none' })
+    return
   }
+  items.value = res.data?.orderItemList || []
+  forms.value = items.value.map(() => ({ star: 5, content: '', pics: [], uploading: false }))
 })
 
 const chooseImages = (index: number) => {
@@ -97,7 +96,6 @@ const previewImage = (formIndex: number, picIndex: number) => {
 }
 
 const submit = async () => {
-  if (submitting.value || items.value.length === 0) return
   const invalid = forms.value.some((form) => !form.content.trim())
   if (invalid) {
     uni.showToast({ title: '请填写每件商品的评价内容', icon: 'none' })

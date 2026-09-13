@@ -12,7 +12,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 @Profile("assistant")
 public class AssistantWebConfiguration {
-    static final String[] LOCAL_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"};
 
     @Bean
     public WebMvcConfigurer assistantCorsConfigurer() {
@@ -20,7 +19,7 @@ public class AssistantWebConfiguration {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/assistant/**")
-                        .allowedOrigins(LOCAL_ORIGINS)
+                        .allowedOrigins("http://localhost:5173", "http://127.0.0.1:5173")
                         .allowedMethods("POST", "OPTIONS")
                         .allowedHeaders("*")
                         .maxAge(3600);

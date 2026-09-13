@@ -122,21 +122,6 @@ const loadingType = ref<'more' | 'loading' | 'nomore'>('more')
 // ===== 页面数据 =====
 // 当前搜索关键字
 const currentKeyword = ref('')
-
-// H5 路由可能对已编码的参数再次编码，最多解码两层以兼容旧链接和历史记录。
-const decodeSearchKeyword = (value: string) => {
-  let decoded = value
-  for (let i = 0; i < 2; i++) {
-    try {
-      const next = decodeURIComponent(decoded)
-      if (next === decoded) break
-      decoded = next
-    } catch {
-      break
-    }
-  }
-  return decoded.trim()
-}
 // 分类树列表
 const cateList = ref<CategoryTreeNode[]>([])
 // 商品列表
@@ -229,7 +214,7 @@ onLoad((options) => {
 
   // 设置搜索关键字
   if (options?.keyword) {
-    currentKeyword.value = decodeSearchKeyword(options.keyword)
+    currentKeyword.value = decodeURIComponent(options.keyword)
     searchParam.value.keyword = currentKeyword.value
   }
 

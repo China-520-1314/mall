@@ -6,7 +6,6 @@ import type {
   RegisterParam,
   ResetPasswordParam,
   EmailCodePurpose,
-  EmailCodeSendResult,
 } from '@/types/member'
 
 /** 登录 */
@@ -14,7 +13,6 @@ export const loginAPI = (data: LoginParam) => {
   return http<LoginResult>({
     method: 'POST',
     url: '/sso/login',
-    auth: false,
     header: {
       'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
     },
@@ -35,7 +33,6 @@ export const registerAPI = (data: RegisterParam) => {
   return http({
     method: 'POST',
     url: '/sso/register',
-    auth: false,
     header: {
       'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
     },
@@ -45,11 +42,9 @@ export const registerAPI = (data: RegisterParam) => {
 
 /** 发送QQ邮箱验证码 */
 export const sendEmailCodeAPI = (email: string, purpose: EmailCodePurpose) => {
-  return http<EmailCodeSendResult>({
+  return http({
     method: 'POST',
     url: '/sso/sendEmailCode',
-    timeout: 30000,
-    auth: false,
     header: {
       'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
     },
@@ -62,23 +57,6 @@ export const resetPasswordAPI = (data: ResetPasswordParam) => {
   return http({
     method: 'POST',
     url: '/sso/updatePassword',
-    auth: false,
-    header: {
-      'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
-    },
-    data,
-  })
-}
-
-/** 修改当前登录会员密码 */
-export const changePasswordAPI = (data: {
-  oldPassword: string
-  newPassword: string
-  confirmPassword: string
-}) => {
-  return http({
-    method: 'POST',
-    url: '/sso/changePassword',
     header: {
       'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
     },

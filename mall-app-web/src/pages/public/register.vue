@@ -12,23 +12,13 @@
           <text class="tit">QQ邮箱账号</text>
           <view class="qq-email-input">
             <input
-              type="text"
-              inputmode="numeric"
+              type="number"
               v-model="formData.email"
-              @blur="normalizeEmailInput"
-              placeholder="输入QQ号或粘贴QQ邮箱"
-              :maxlength="32"
-              :disabled="sendingCode || submitting"
+              placeholder="请输入QQ号"
+              :maxlength="12"
             />
-            <text v-if="!formData.email.trim().toLowerCase().endsWith('@qq.com')" class="email-suffix">@qq.com</text>
+            <text class="email-suffix">@qq.com</text>
           </view>
-        </view>
-        <view class="email-code-hint" :class="{ 'is-error': sendError }" aria-live="polite">
-          <text v-if="sendError">{{ sendError }}</text>
-          <text v-else-if="sentToEmail">
-            验证码已发送至 {{ sentToEmail }}，{{ codeValidityMinutes }}分钟内有效。请使用最新验证码，未收到时请查看垃圾邮件。
-          </text>
-          <text v-else>输入QQ号后自动补全@qq.com。验证码10秒后可重新发送，每小时最多5次。</text>
         </view>
         <view class="input-item">
           <text class="tit">邮箱验证码</text>
@@ -78,10 +68,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
+import { ref } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { registerAPI, resetPasswordAPI, sendEmailCodeAPI } from '@/apis/member'
-import type { RegisterParam, EmailCodePurpose, EmailCodeSendResult } from '@/types/member'
+import type { RegisterParam, EmailCodePurpose } from '@/types/member'
 import { useMemberStore } from '@/stores/member'
 
 // ===== 页面数据 =====
@@ -97,47 +87,8 @@ const formData = ref<RegisterParam>({
 const submitting = ref(false)
 const sendingCode = ref(false)
 const countdown = ref(0)
-const sentToEmail = ref('')
-const codeValidityMinutes = ref(5)
-const sendError = ref('')
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 const memberStore = useMemberStore()
-const emailStateKey = 'mall-email-code-state'
-const emailDraftKey = 'mall-email-code-account'
-type EmailSendState = {
-  cooldownUntil: number
-  codeExpiresAt: number
-  validitySeconds: number
-  purpose: EmailCodePurpose
-}
-let memoryStates: Record<string, EmailSendState> = {}
-
-// 只保存邮箱及过期时间，密码与验证码始终不写入本地存储。
-const readStates = () => {
-  try {
-    const saved = uni.getStorageSync(emailStateKey)
-    if (saved && typeof saved === 'object') memoryStates = saved
-  } catch {
-    // 存储不可用时仍可在当前页面使用倒计时。
-  }
-  const now = Date.now()
-  Object.keys(memoryStates).forEach((email) => {
-    const state = memoryStates[email]
-    if (!state || (state.cooldownUntil <= now && state.codeExpiresAt <= now)) delete memoryStates[email]
-  })
-  return memoryStates
-}
-
-const saveState = (email: string, state: EmailSendState) => {
-  const states = readStates()
-  states[email] = state
-  try {
-    uni.setStorageSync(emailStateKey, states)
-    uni.setStorageSync(emailDraftKey, email.replace(/@qq\.com$/i, ''))
-  } catch {
-    // 存储失败不影响后端已确认的发送成功结果。
-  }
-}
 
 // ===== 生命周期 =====
 // 页面加载时根据参数设置模式
@@ -147,93 +98,47 @@ onLoad((options) => {
   } else {
     pageMode.value = 'register'
   }
-  try {
-    const savedEmail = uni.getStorageSync(emailDraftKey)
-    if (typeof savedEmail === 'string' && isValidQQNumber(savedEmail)) formData.value.email = savedEmail
-  } catch {
-    // 无可恢复账号时保留空输入框。
-  }
-  restoreCountdown()
 })
-
-onShow(() => restoreCountdown())
 
 onUnload(() => {
   if (countdownTimer) clearInterval(countdownTimer)
 })
 
-const normalizeQQNumber = (value: string) => value.trim().replace(/@qq\.com$/i, '')
-const isValidQQNumber = (value: string) => /^[1-9][0-9]{4,11}$/.test(normalizeQQNumber(value))
-const getQQEmail = () => `${normalizeQQNumber(formData.value.email)}@qq.com`
-const normalizeEmailInput = () => {
-  formData.value.email = normalizeQQNumber(formData.value.email)
-}
+const isValidQQNumber = (value: string) => /^[1-9][0-9]{4,11}$/.test(value.trim())
+const getQQEmail = () => `${formData.value.email.trim()}@qq.com`
 
 const currentPurpose = (): EmailCodePurpose =>
   pageMode.value === 'reset' ? 'RESET_PASSWORD' : 'REGISTER'
 
-const updateCountdown = () => {
-  const state = isValidQQNumber(formData.value.email) ? readStates()[getQQEmail()] : undefined
-  countdown.value = Math.max(0, Math.ceil(((state?.cooldownUntil || 0) - Date.now()) / 1000))
-  sentToEmail.value = state && state.codeExpiresAt > Date.now() && state.purpose === currentPurpose()
-    ? getQQEmail() : ''
-  codeValidityMinutes.value = Math.ceil((state?.validitySeconds || 300) / 60)
-}
-
-const restoreCountdown = () => {
-  updateCountdown()
+const startCountdown = () => {
+  countdown.value = 10
   if (countdownTimer) clearInterval(countdownTimer)
-  countdownTimer = setInterval(updateCountdown, 1000)
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0 && countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }, 1000)
 }
-
-watch(() => formData.value.email, () => {
-  formData.value.authCode = ''
-  sendError.value = ''
-  updateCountdown()
-})
 
 const handleSendEmailCode = async () => {
-  updateCountdown()
-  if (sendingCode.value || countdown.value > 0) return
   if (!isValidQQNumber(formData.value.email)) {
     uni.showToast({ title: '请输入正确的QQ号', icon: 'none' })
     return
   }
   const email = getQQEmail()
-  const purpose = currentPurpose()
   sendingCode.value = true
-  sendError.value = ''
   try {
-    const response = await sendEmailCodeAPI(email, purpose)
-    saveState(email, {
-      cooldownUntil: Date.now() + response.data.cooldownSeconds * 1000,
-      codeExpiresAt: Date.now() + response.data.expiresIn * 1000,
-      validitySeconds: response.data.expiresIn,
-      purpose,
-    })
-    formData.value.authCode = ''
-    restoreCountdown()
+    await sendEmailCodeAPI(email, currentPurpose())
+    startCountdown()
     uni.showToast({ title: '验证码已发送', icon: 'success' })
-  } catch (error) {
-    const result = (error as { data?: { code?: number; message?: string; data?: EmailCodeSendResult } })?.data
-    sendError.value = result?.message || '未确认发送结果，请先检查收件箱和垃圾邮件，稍后重试。'
-    if (result?.code === 429 && result.data) {
-      const previous = readStates()[email]
-      saveState(email, {
-        cooldownUntil: Date.now() + result.data.cooldownSeconds * 1000,
-        codeExpiresAt: previous?.codeExpiresAt || 0,
-        validitySeconds: previous?.validitySeconds || 300,
-        purpose: previous?.purpose || purpose,
-      })
-      restoreCountdown()
-    }
   } finally {
     sendingCode.value = false
   }
 }
 
 const handleSubmit = async () => {
-  if (submitting.value) return
   const { password, confirmPassword, authCode } = formData.value
   if (!isValidQQNumber(formData.value.email)) {
     uni.showToast({ title: '请输入正确的QQ号', icon: 'none' })
@@ -256,13 +161,7 @@ const handleSubmit = async () => {
   try {
     if (pageMode.value === 'register') {
       await registerAPI({ ...formData.value, email })
-      try {
-        await memberStore.memberLogin(email, password)
-      } catch {
-        uni.showToast({ title: '注册已成功，请前往登录', icon: 'none' })
-        setTimeout(() => uni.redirectTo({ url: '/pages/public/login' }), 1500)
-        return
-      }
+      await memberStore.memberLogin(email, password)
       uni.showToast({ title: '注册并登录成功', icon: 'success' })
       setTimeout(() => {
         uni.switchTab({ url: '/pages/user/user' })
@@ -275,8 +174,6 @@ const handleSubmit = async () => {
     setTimeout(() => {
       uni.redirectTo({ url: '/pages/public/login' })
     }, 1500)
-  } catch {
-    // HTTP 层已显示具体错误；保留表单供用户修正后重试。
   } finally {
     submitting.value = false
   }
@@ -439,18 +336,6 @@ page {
       color: $font-color-disabled;
       border-color: $font-color-disabled;
     }
-  }
-}
-
-.email-code-hint {
-  margin: -4rpx 0 24rpx;
-  font-size: 24rpx;
-  line-height: 1.6;
-  color: #697386;
-  word-break: break-all;
-
-  &.is-error {
-    color: #c4473e;
   }
 }
 

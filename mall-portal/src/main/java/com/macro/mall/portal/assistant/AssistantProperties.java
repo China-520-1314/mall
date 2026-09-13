@@ -18,10 +18,6 @@ public class AssistantProperties {
     private int timeoutSeconds = 30;
     private int maxHistory = 8;
     private int maxMessageLength = 800;
-    private int maxOutputTokens = 1024;
-
-    public int getMaxOutputTokens() { return maxOutputTokens; }
-    public void setMaxOutputTokens(int value) { maxOutputTokens = Math.max(128, Math.min(value, 4096)); }
 
     public String getBaseUrl() {
         return baseUrl;

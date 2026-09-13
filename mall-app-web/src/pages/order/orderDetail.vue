@@ -2,12 +2,7 @@
   <view>
     <view class="status-section">
       <image :src="orderStatus.image" class="icon" />
-      <view class="status-copy">
-        <text class="label-text">{{ orderStatus.text }}</text>
-        <text v-if="order.status === 0" class="deadline-text">
-          剩余支付时间 {{ getCountdown(order.paymentExpireTime) }}
-        </text>
-      </view>
+      <text class="label-text">{{ orderStatus.text }}</text>
     </view>
     <!-- 地址 -->
     <view class="address-section">
@@ -109,20 +104,17 @@
     </view>
 
     <!-- 底部 -->
-    <view class="footer" v-if="order.status === 0 || order.status === 1 || order.status === 2 || order.status === 3">
+    <view class="footer" v-if="order.status === 0 || order.status === 2 || order.status === 3">
       <view class="action-box b-t" v-if="order.status === 0">
         <button class="action-btn" @click="handleCancelOrder(order.id)">取消订单</button>
         <button class="action-btn recom" @click="handlePayOrder(order.id)">立即付款</button>
       </view>
-      <view class="action-box b-t" v-if="order.status === 1">
-        <button class="action-btn" @click="handleCancelOrder(order.id)">取消订单</button>
-        <button class="action-btn recom" @click="handleReceiveOrder(order.id)">确认收货</button>
-      </view>
       <view class="action-box b-t" v-if="order.status === 2">
+        <button class="action-btn">查看物流</button>
         <button class="action-btn recom" @click="handleReceiveOrder(order.id)">确认收货</button>
       </view>
       <view class="action-box b-t" v-if="order.status === 3">
-        <button class="action-btn">申请售后</button>
+        <button class="action-btn" @click="handleReturnApply(order.id)">申请售后</button>
         <button v-if="!order.commentTime" class="action-btn recom" @click="handleCommentOrder(order.id)">评价商品</button>
         <button v-else class="action-btn" disabled>已评价</button>
       </view>
@@ -137,9 +129,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
+import { onLoad } from '@dcloudio/uni-app'
 import { formatDate } from '@/utils/date'
-import { formatPaymentCountdown, getPaymentRemainingSeconds } from '@/utils/orderPayment'
 import { getOrderDetailAPI, cancelUserOrderAPI, confirmReceiveOrderAPI } from '@/apis/order'
 import type { OmsOrderDetail } from '@/types/order'
 
@@ -150,9 +141,6 @@ const orderId = ref<number>(0)
 const order = ref<OmsOrderDetail>({} as OmsOrderDetail)
 // 订单状态信息
 const orderStatus = ref<{ text: string; image: string }>({ text: '', image: '' })
-const currentTime = ref(Date.now())
-let countdownTimer: ReturnType<typeof setInterval> | null = null
-let refreshingExpiredOrder = false
 
 // ===== loadData =====
 // 加载订单详情
@@ -171,25 +159,8 @@ const loadData = async () => {
 onLoad((options) => {
   if (options?.orderId) {
     orderId.value = +options.orderId
-    countdownTimer = setInterval(async () => {
-      currentTime.value = Date.now()
-      if (
-        order.value.status === 0 &&
-        getPaymentRemainingSeconds(order.value.paymentExpireTime, currentTime.value) === 0 &&
-        !refreshingExpiredOrder
-      ) {
-        refreshingExpiredOrder = true
-        await loadData()
-        refreshingExpiredOrder = false
-      }
-    }, 1000)
+    loadData()
   }
-})
-
-onShow(() => { if (orderId.value) loadData() })
-
-onUnload(() => {
-  if (countdownTimer) clearInterval(countdownTimer)
 })
 
 // ===== 事件处理方法 =====
@@ -205,8 +176,7 @@ const handleCancelOrder = (id: number) => {
         try {
           await cancelUserOrderAPI(id)
           uni.hideLoading()
-          await loadData()
-          uni.showToast({ title: '订单已取消', icon: 'success' })
+          loadData()
         } catch (e) {
           uni.hideLoading()
           console.error('取消订单失败', e)
@@ -227,21 +197,14 @@ const handlePayOrder = (id: number) => {
 const handleReceiveOrder = (id: number) => {
   uni.showModal({
     title: '提示',
-    content: '请确认已收到商品。确认后订单完成，即可评价商品。',
+    content: '是否要确认收货？',
     success: async (res) => {
       if (res.confirm) {
         uni.showLoading({ title: '请稍后' })
         try {
           await confirmReceiveOrderAPI(id)
           uni.hideLoading()
-          await loadData()
-          uni.showModal({
-            title: '收货成功',
-            content: '现在可以评价本次购买的商品了。',
-            confirmText: '去评价',
-            cancelText: '稍后评价',
-            success: (result) => { if (result.confirm) handleCommentOrder(id) },
-          })
+          loadData()
         } catch (e) {
           uni.hideLoading()
           console.error('确认收货失败', e)
@@ -251,9 +214,13 @@ const handleReceiveOrder = (id: number) => {
   })
 }
 
-// 评价订单商品
 const handleCommentOrder = (id: number) => {
   uni.navigateTo({ url: `/pages/order/comment?orderId=${id}` })
+}
+
+// 申请售后
+const handleReturnApply = (id: number) => {
+  uni.navigateTo({ url: `/pages/order/returnApply?orderId=${id}` })
 }
 
 // ===== 其他方法 =====
@@ -268,10 +235,6 @@ const setOrderStatus = (status: number) => {
     4: { text: '交易关闭', image: '/static/icon_close.png' },
   }
   orderStatus.value = statusMap[status] || { text: '', image: '' }
-}
-
-const getCountdown = (paymentExpireTime?: string | null): string => {
-  return formatPaymentCountdown(paymentExpireTime, currentTime.value)
 }
 
 // 格式化商品属性
@@ -333,18 +296,7 @@ page {
 
   .label-text {
     color: #fff;
-  }
-
-  .status-copy {
-    display: flex;
-    flex-direction: column;
     margin-left: 30rpx;
-  }
-
-  .deadline-text {
-    margin-top: 10rpx;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 24rpx;
   }
 }
 

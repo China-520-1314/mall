@@ -86,6 +86,15 @@ public class OmsOrderReturnApply implements Serializable {
     @Schema(title = "收货备注")
     private String receiveNote;
 
+    @Schema(title = "顾客寄回快递公司")
+    private String returnDeliveryCompany;
+
+    @Schema(title = "顾客寄回快递单号")
+    private String returnDeliverySn;
+
+    @Schema(title = "顾客寄回时间")
+    private Date shipTime;
+
     private static final long serialVersionUID = 1L;
 
     public Long getId() {
@@ -304,6 +313,30 @@ public class OmsOrderReturnApply implements Serializable {
         this.receiveNote = receiveNote;
     }
 
+    public String getReturnDeliveryCompany() {
+        return returnDeliveryCompany;
+    }
+
+    public void setReturnDeliveryCompany(String returnDeliveryCompany) {
+        this.returnDeliveryCompany = returnDeliveryCompany;
+    }
+
+    public String getReturnDeliverySn() {
+        return returnDeliverySn;
+    }
+
+    public void setReturnDeliverySn(String returnDeliverySn) {
+        this.returnDeliverySn = returnDeliverySn;
+    }
+
+    public Date getShipTime() {
+        return shipTime;
+    }
+
+    public void setShipTime(Date shipTime) {
+        this.shipTime = shipTime;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -337,6 +370,9 @@ public class OmsOrderReturnApply implements Serializable {
         sb.append(", receiveMan=").append(receiveMan);
         sb.append(", receiveTime=").append(receiveTime);
         sb.append(", receiveNote=").append(receiveNote);
+        sb.append(", returnDeliveryCompany=").append(returnDeliveryCompany);
+        sb.append(", returnDeliverySn=").append(returnDeliverySn);
+        sb.append(", shipTime=").append(shipTime);
         sb.append(", serialVersionUID=").append(serialVersionUID);
         sb.append("]");
         return sb.toString();

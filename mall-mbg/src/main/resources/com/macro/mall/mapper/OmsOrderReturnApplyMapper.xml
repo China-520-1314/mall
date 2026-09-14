@@ -29,6 +29,9 @@
     <result column="receive_man" jdbcType="VARCHAR" property="receiveMan" />
     <result column="receive_time" jdbcType="TIMESTAMP" property="receiveTime" />
     <result column="receive_note" jdbcType="VARCHAR" property="receiveNote" />
+    <result column="return_delivery_company" jdbcType="VARCHAR" property="returnDeliveryCompany" />
+    <result column="return_delivery_sn" jdbcType="VARCHAR" property="returnDeliverySn" />
+    <result column="ship_time" jdbcType="TIMESTAMP" property="shipTime" />
   </resultMap>
   <sql id="Example_Where_Clause">
     <where>
@@ -92,7 +95,8 @@
     id, order_id, company_address_id, product_id, order_sn, create_time, member_username, 
     return_amount, return_name, return_phone, status, handle_time, product_pic, product_name, 
     product_brand, product_attr, product_count, product_price, product_real_price, reason, 
-    description, proof_pics, handle_note, handle_man, receive_man, receive_time, receive_note
+    description, proof_pics, handle_note, handle_man, receive_man, receive_time, receive_note,
+    return_delivery_company, return_delivery_sn, ship_time
   </sql>
   <select id="selectByExample" parameterType="com.macro.mall.model.OmsOrderReturnApplyExample" resultMap="BaseResultMap">
     select
@@ -521,6 +525,15 @@
       </if>
       <if test="receiveNote != null">
         receive_note = #{receiveNote,jdbcType=VARCHAR},
+      </if>
+      <if test="returnDeliveryCompany != null">
+        return_delivery_company = #{returnDeliveryCompany,jdbcType=VARCHAR},
+      </if>
+      <if test="returnDeliverySn != null">
+        return_delivery_sn = #{returnDeliverySn,jdbcType=VARCHAR},
+      </if>
+      <if test="shipTime != null">
+        ship_time = #{shipTime,jdbcType=TIMESTAMP},
       </if>
     </set>
     where id = #{id,jdbcType=BIGINT}

@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.macro.mall.portal.dao.HomeDao">
-    <select id="getCartPreferenceProductIds" resultType="java.lang.Long">
-        SELECT product_id FROM oms_cart_item
-        WHERE member_id = #{memberId} AND delete_status = 0 AND quantity &gt; 0
-        GROUP BY product_id ORDER BY MAX(id) DESC LIMIT 30
-    </select>
-
-    <select id="getPurchasedPreferenceProductIds" resultType="java.lang.Long">
-        SELECT i.product_id FROM oms_order_item i
-        JOIN oms_order o ON o.id = i.order_id
-        WHERE o.member_id = #{memberId} AND o.delete_status = 0 AND o.status IN (1, 2, 3)
-        GROUP BY i.product_id ORDER BY MAX(o.id) DESC LIMIT 30
-    </select>
     <resultMap id="flashPromotionProduct" type="com.macro.mall.portal.domain.FlashPromotionProduct"
                extends="com.macro.mall.mapper.PmsProductMapper.BaseResultMap">
         <result column="flash_promotion_price" property="flashPromotionPrice"/>
@@ -45,7 +33,6 @@
         WHERE
             pr.flash_promotion_id = #{flashPromotionId}
             AND pr.flash_promotion_session_id = #{sessionId}
-            AND p.publish_status = 1 AND p.delete_status = 0
     </select>
 
     <select id="getNewProductList" resultMap="com.macro.mall.mapper.PmsProductMapper.BaseResultMap">
@@ -56,7 +43,6 @@
         WHERE
             hp.recommend_status = 1
             AND p.publish_status = 1
-            AND p.delete_status = 0
         ORDER BY
             hp.sort DESC
         LIMIT #{offset}, #{limit};
@@ -70,7 +56,6 @@
         WHERE
             hp.recommend_status = 1
             AND p.publish_status = 1
-            AND p.delete_status = 0
         ORDER BY
             hp.sort DESC
         LIMIT #{offset}, #{limit};

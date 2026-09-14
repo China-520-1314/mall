@@ -11,8 +11,6 @@ target/
 .project
 
 # Local development artifacts
-mall.local.env
-runtime/
 node_modules/
 dist/
 unpackage/
@@ -28,9 +26,3 @@ output/
 doc-work/
 .playwright-cli/
 .nested-git-backup/
-
-# Machine-specific credentials; publish templates only.
-.env
-.env.local
-.env.*.local
-scripts/configure-local.ps1

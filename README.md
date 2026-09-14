@@ -1,16 +1,11 @@
 # mall
 
-## 本仓库改进版
+本仓库只维护商城后端。用户端和管理端分别维护在独立仓库：
 
-本仓库包含商城后端、用户端 `mall-app-web` 和管理端 `mall-admin-web`。
-已增加 QQ 邮箱账号与真实邮件验证码、密码找回和修改、个性化推荐、商品分享、站内信、
-确认收货与购买评价、评论回复和点赞、“我的评价”、本地商品图片等功能。
+- 用户端：https://github.com/China-520-1314/mall-app-web
+- 管理端：https://github.com/China-520-1314/mall-admin-web
 
-- [改进版运行与 QQ 邮箱配置说明](document/reference/custom-version-setup.md)
-- [本地环境变量配置示例](scripts/configure-local.example.ps1)
-
-QQ 邮箱验证码的前后端源码、邮件发送逻辑、SQL 和测试均在仓库内；运行时填写自己的 SMTP 授权码。
-以下为原项目介绍及技术资料。
+本地联调时请将三个仓库放在同一目录下；一键启动脚本会读取同级目录中的两个前端项目。
 
 <p>
   <a href="#公众号"><img src="http://macro-oss.oss-cn-shenzhen.aliyuncs.com/mall/badge/%E5%85%AC%E4%BC%97%E5%8F%B7-macrozheng-blue.svg" alt="公众号"></a>

@@ -4,17 +4,9 @@ import com.macro.mall.common.api.CommonPage;
 import com.macro.mall.common.api.CommonResult;
 import com.macro.mall.model.PmsProduct;
 import com.macro.mall.model.PmsComment;
-import com.macro.mall.model.PmsCommentReplay;
-import com.macro.mall.model.OmsOrderItem;
 import com.macro.mall.portal.domain.CommentImageResult;
 import com.macro.mall.portal.domain.ProductCommentBatchParam;
 import com.macro.mall.portal.domain.ProductCommentSummary;
-import com.macro.mall.portal.domain.ProductCommentLikeResult;
-import com.macro.mall.portal.domain.ProductCommentReplyParam;
-import com.macro.mall.portal.domain.ProductCommentView;
-import com.macro.mall.portal.domain.ProductCommentPurchase;
-import com.macro.mall.portal.domain.MyProductCommentView;
-import com.macro.mall.portal.domain.ReceivedCommentReplyView;
 import com.macro.mall.portal.domain.PmsPortalProductDetail;
 import com.macro.mall.portal.domain.PmsProductCategoryNode;
 import com.macro.mall.portal.service.PmsPortalProductService;
@@ -84,7 +76,7 @@ public class PmsPortalProductController {
     @Operation(summary = "分页获取商品评价")
     @RequestMapping(value = "/{productId}/comments", method = RequestMethod.GET)
     @ResponseBody
-    public CommonResult<CommonPage<ProductCommentView>> comments(@PathVariable Long productId,
+    public CommonResult<CommonPage<PmsComment>> comments(@PathVariable Long productId,
                                                           @RequestParam(required = false, defaultValue = "1") @Min(1) Integer pageNum,
                                                           @RequestParam(required = false, defaultValue = "10") @Min(1) @Max(50) Integer pageSize) {
         return CommonResult.success(portalProductService.listComments(productId, pageNum, pageSize));
@@ -120,89 +112,5 @@ public class PmsPortalProductController {
         }
         String filename = commentImageService.store(file);
         return CommonResult.success(new CommentImageResult("/uploads/comments/" + filename));
-    }
-
-    @Operation(summary = "获取评价回复")
-    @GetMapping("/comments/{commentId}/replies")
-    @ResponseBody
-    public CommonResult<CommonPage<PmsCommentReplay>> replies(@PathVariable Long commentId,
-            @RequestParam(defaultValue = "1") @Min(1) Integer pageNum,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(50) Integer pageSize) {
-        return CommonResult.success(portalProductService.listCommentReplies(commentId, pageNum, pageSize));
-    }
-
-    @Operation(summary = "分页获取自己的商品评价")
-    @GetMapping("/comments/mine")
-    @ResponseBody
-    public CommonResult<CommonPage<MyProductCommentView>> myComments(
-            @RequestParam(defaultValue = "1") @Min(1) Integer pageNum,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(50) Integer pageSize,
-            Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        return CommonResult.success(portalProductService.listMyComments(pageNum, pageSize));
-    }
-
-    @Operation(summary = "分页获取他人对自己评价的回复")
-    @GetMapping("/comments/replies/mine")
-    @ResponseBody
-    public CommonResult<CommonPage<ReceivedCommentReplyView>> receivedReplies(
-            @RequestParam(defaultValue = "1") @Min(1) Integer pageNum,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(50) Integer pageSize,
-            Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        return CommonResult.success(portalProductService.listReceivedReplies(pageNum, pageSize));
-    }
-
-    @Operation(summary = "回复商品评价")
-    @PostMapping("/comments/{commentId}/replies")
-    @ResponseBody
-    public CommonResult<Void> reply(@PathVariable Long commentId,
-                                    @RequestBody @jakarta.validation.Valid ProductCommentReplyParam param,
-                                    Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        portalProductService.createCommentReply(commentId, param);
-        return CommonResult.success(null, "回复成功");
-    }
-
-    @Operation(summary = "删除自己的评价回复")
-    @DeleteMapping("/comments/replies/{replyId}")
-    @ResponseBody
-    public CommonResult<Void> deleteReply(@PathVariable Long replyId, Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        portalProductService.deleteCommentReply(replyId);
-        return CommonResult.success(null, "删除成功");
-    }
-
-    @Operation(summary = "评价点赞或取消点赞")
-    @PostMapping("/comments/{commentId}/like")
-    @ResponseBody
-    public CommonResult<ProductCommentLikeResult> like(@PathVariable Long commentId, Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        return CommonResult.success(portalProductService.toggleCommentLike(commentId));
-    }
-
-    @Operation(summary = "删除自己的评价")
-    @DeleteMapping("/comments/{commentId}")
-    @ResponseBody
-    public CommonResult<Void> deleteComment(@PathVariable Long commentId, Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        portalProductService.deleteComment(commentId);
-        return CommonResult.success(null, "删除成功");
-    }
-
-    @Operation(summary = "获取当前商品最近一笔可评价购买")
-    @GetMapping("/{productId}/commentPurchase")
-    @ResponseBody
-    public CommonResult<ProductCommentPurchase> commentPurchase(@PathVariable Long productId, Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        return CommonResult.success(portalProductService.findCommentPurchase(productId));
-    }
-
-    @Operation(summary = "获取自己的已完成订单中尚未评价的商品")
-    @GetMapping("/comment/order/{orderId}/items")
-    @ResponseBody
-    public CommonResult<List<OmsOrderItem>> uncommentedItems(@PathVariable Long orderId, Principal principal) {
-        if (principal == null) return CommonResult.unauthorized(null);
-        return CommonResult.success(portalProductService.listUncommentedItems(orderId));
     }
 }

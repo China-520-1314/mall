@@ -12,7 +12,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 @Profile("assistant")
 public class AssistantWebConfiguration {
-    static final String[] LOCAL_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"};
+
+    /** 受信任的本地 H5 页面来源，供 CORS 配置与 {@link AssistantRequestFilter} 共用。 */
+    public static final String[] LOCAL_ORIGINS = {
+            "http://localhost:5173", "http://127.0.0.1:5173"
+    };
 
     @Bean
     public WebMvcConfigurer assistantCorsConfigurer() {

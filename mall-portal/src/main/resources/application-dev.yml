@@ -1,11 +1,3 @@
-# 核心就绪状态检查 MySQL、Redis；可选的邮件、MongoDB、RabbitMQ 仍保留总健康状态。
-management:
-  endpoint:
-    health:
-      group:
-        readiness:
-          include: ping,db,redis
-
 server:
   port: 8085
 

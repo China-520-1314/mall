@@ -9,9 +9,6 @@ public class PmsCommentReplay implements Serializable {
 
     private Long commentId;
 
-    /** 回复作者会员ID，用于鉴权删除。 */
-    private Long memberId;
-
     private String memberNickName;
 
     private String memberIcon;
@@ -39,14 +36,6 @@ public class PmsCommentReplay implements Serializable {
 
     public void setCommentId(Long commentId) {
         this.commentId = commentId;
-    }
-
-    public Long getMemberId() {
-        return memberId;
-    }
-
-    public void setMemberId(Long memberId) {
-        this.memberId = memberId;
     }
 
     public String getMemberNickName() {

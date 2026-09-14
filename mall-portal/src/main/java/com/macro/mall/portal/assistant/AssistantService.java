@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.ArrayList;
 
 @Service
 public class AssistantService {
@@ -35,45 +36,74 @@ public class AssistantService {
         if (message.length() > properties.getMaxMessageLength()) {
             throw new IllegalArgumentException("问题过长，请控制在 " + properties.getMaxMessageLength() + " 个字符以内");
         }
+        List<AssistantHistoryMessage> history = validateHistory(request.history());
         if (!client.isConfigured()) {
-            return new AssistantChatResponse(localReply(message), true);
+            return response(localReply(message), true, message);
         }
         try {
-            return new AssistantChatResponse(client.complete(SYSTEM_INSTRUCTIONS, buildInput(message, request.history())), false);
+            return response(client.complete(SYSTEM_INSTRUCTIONS, buildInput(message, history)), false, message);
         } catch (CiyuanshenClient.AssistantClientException ex) {
             LOGGER.warn("智能客服上游调用失败：{}", ex.getMessage());
-            return new AssistantChatResponse(localReply(message), true);
+            return response(localReply(message), true, message);
         }
     }
 
     private String buildInput(String message, List<AssistantHistoryMessage> history) {
-        List<AssistantHistoryMessage> items = history == null ? Collections.emptyList() : history;
-        int fromIndex = Math.max(0, items.size() - Math.max(0, properties.getMaxHistory()));
         StringBuilder input = new StringBuilder();
-        for (AssistantHistoryMessage item : items.subList(fromIndex, items.size())) {
-            if (item == null || item.content() == null || item.content().isBlank()) {
-                continue;
-            }
-            String content = item.content().trim();
-            if (content.length() > properties.getMaxMessageLength()) {
-                content = content.substring(0, properties.getMaxMessageLength());
-            }
+        for (AssistantHistoryMessage item : history) {
+            String content = item.content();
             input.append("assistant".equalsIgnoreCase(item.role()) ? "客服：" : "用户：")
                     .append(content).append('\n');
         }
         return input.append("用户：").append(message).toString();
     }
 
+    private AssistantChatResponse response(String reply, boolean fallback, String message) {
+        return new AssistantChatResponse(reply, fallback, actionsFor(message));
+    }
+
+    private List<AssistantAction> actionsFor(String message) {
+        String text = message.toLowerCase(Locale.ROOT);
+        List<AssistantAction> actions = new ArrayList<>();
+        if (containsAny(text, "售后", "退款", "退货", "换货")) {
+            actions.add(new AssistantAction("查看售后进度", "/pages/order/returnList", true));
+            actions.add(new AssistantAction("申请售后", "/pages/order/order", true));
+        } else if (containsAny(text, "订单", "物流", "快递", "发货")) {
+            actions.add(new AssistantAction("查看我的订单", "/pages/order/order", true));
+        }
+        return List.copyOf(actions);
+    }
+
+    private List<AssistantHistoryMessage> validateHistory(List<AssistantHistoryMessage> history) {
+        List<AssistantHistoryMessage> items = history == null ? Collections.emptyList() : history;
+        if (items.size() > properties.getMaxHistory()) {
+            throw new IllegalArgumentException("对话历史过长，请清空会话后重试");
+        }
+        List<AssistantHistoryMessage> result = new java.util.ArrayList<>(items.size());
+        for (AssistantHistoryMessage item : items) {
+            if (item == null || item.content() == null || item.content().isBlank()
+                    || !("user".equals(item.role()) || "assistant".equals(item.role()))) {
+                throw new IllegalArgumentException("对话历史格式无效");
+            }
+            String content = item.content().trim();
+            if (content.length() > properties.getMaxMessageLength()) {
+                content = content.substring(0, properties.getMaxMessageLength());
+            }
+            result.add(new AssistantHistoryMessage(item.role(), content));
+        }
+        return result;
+    }
+
     private String localReply(String message) {
         String text = message.toLowerCase(Locale.ROOT);
-        if (containsAny(text, "商品", "搜索", "查找", "手机", "价格")) {
-            return "点击首页顶部搜索框，输入商品名称或关键词即可查找；也可以进入“分类”按品类浏览。商品价格和库存请以详情页为准。";
+        if (containsAny(text, "售后", "退款", "退货", "换货")) {
+            return "请进入“我的”中的订单列表，打开对应订单后申请售后。提交前请确认商品状态、退款原因和相关凭证。";
         }
         if (containsAny(text, "订单", "物流", "快递", "发货")) {
             return "登录后进入“我的”，点击“全部订单”查看订单状态；进入订单详情可以查看收货信息和物流进度。";
         }
-        if (containsAny(text, "售后", "退款", "退货", "换货")) {
-            return "请进入“我的”中的订单列表，打开对应订单后申请售后。提交前请确认商品状态、退款原因和相关凭证。";
+        if (containsAny(text, "商品", "搜索", "查找", "手机", "价格")) {
+            return "点击首页顶部搜索框，输入商品名称或关键词即可查找；也可以进入“分类”按品类浏览。商品价格和库存请以详情页为准。";
         }
         if (containsAny(text, "注册", "登录", "密码", "验证码", "邮箱", "账号")) {
             return "新用户可在登录页点击“马上注册”，使用 QQ 邮箱接收验证码。忘记密码时点击“忘记密码”，验证邮箱后即可设置新密码。";

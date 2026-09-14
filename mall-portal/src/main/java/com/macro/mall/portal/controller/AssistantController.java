@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/assistant")
 public class AssistantController {
     private final AssistantService assistantService;
-
     public AssistantController(AssistantService assistantService) {
         this.assistantService = assistantService;
     }
@@ -30,4 +29,5 @@ public class AssistantController {
             return CommonResult.validateFailed(ex.getMessage());
         }
     }
+
 }

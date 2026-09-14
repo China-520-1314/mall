@@ -1,7 +1,7 @@
 import type { MemberInfo } from '@/types/member'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { loginAPI, getMemberInfoAPI } from '@/apis/member'
+import { loginAPI, loginByEmailCodeAPI, getMemberInfoAPI } from '@/apis/member'
 
 // 定义会员Store
 export const useMemberStore = defineStore(
@@ -45,12 +45,20 @@ export const useMemberStore = defineStore(
       uni.removeStorageSync('password')
       uni.removeStorageSync('username')
     }
+    const memberLoginByEmailCode = async (email: string, authCode: string) => {
+      const loginRes = await loginByEmailCodeAPI({ email, authCode })
+      const token = `${loginRes.data.tokenHead}${loginRes.data.token}`
+      uni.setStorageSync('token', token)
+      uni.setStorageSync('email', email)
+      const memberRes = await getMemberInfoAPI()
+      setMemberInfo(memberRes.data)
+    }
 
     return {
       memberInfo,
       hasLogin,
       setMemberInfo,
-      memberLogin,
+      memberLogin, memberLoginByEmailCode,
       memberLogout,
     }
   },

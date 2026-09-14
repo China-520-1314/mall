@@ -8,6 +8,9 @@
     <select id="selectMemberIdByEmail" resultType="long">
         SELECT id FROM ums_member WHERE email = #{email} LIMIT 1
     </select>
+    <select id="selectEmailByMemberId" resultType="string">
+        SELECT email FROM ums_member WHERE id = #{memberId} LIMIT 1
+    </select>
 
     <update id="updateEmail">
         UPDATE ums_member SET email = #{email} WHERE id = #{memberId}

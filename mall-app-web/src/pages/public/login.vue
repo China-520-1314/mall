@@ -29,7 +29,7 @@
       </view>
       <button class="confirm-btn" @click="toLogin" :disabled="logining"> 登录 </button>
       <button class="confirm-btn2" @click="toRegist('register')">注册新账号</button>
-      <view class="forget-section" @click="toRegist('reset')">忘记密码？</view>
+      <view class="forget-section" @click="toRegist('reset')">忘记密码？使用邮箱验证码登录</view>
     </view>
   </view>
 </template>

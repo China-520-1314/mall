@@ -86,9 +86,7 @@ const toLogout = () => {
           title: '已退出登录',
           icon: 'success',
         })
-        setTimeout(() => {
-          uni.navigateBack()
-        }, 200)
+        setTimeout(() => uni.redirectTo({ url: '/pages/public/login' }), 200)
       }
     },
   })

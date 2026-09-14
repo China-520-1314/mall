@@ -176,7 +176,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     }
 
     private String subjectFor(EmailCodePurpose purpose) {
-        return purpose == EmailCodePurpose.REGISTER ? "Mall商城注册验证码" : "Mall商城密码重置验证码";
+        return purpose == EmailCodePurpose.REGISTER ? "Mall商城注册验证码" : (purpose == EmailCodePurpose.CHANGE_PASSWORD ? "Mall商城修改密码验证码" : "Mall商城密码重置验证码");
     }
 
     private static class VerificationCode {

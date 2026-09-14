@@ -42,6 +42,10 @@ export const registerAPI = (data: RegisterParam) => {
     data,
   })
 }
+export const loginByEmailCodeAPI = (data: { email: string; authCode: string }) => http<LoginResult>({
+  method: 'POST', url: '/sso/loginByEmailCode', auth: false,
+  header: { 'content-type': 'application/x-www-form-urlencoded;charset=utf-8' }, data,
+})
 
 /** 发送QQ邮箱验证码 */
 export const sendEmailCodeAPI = (email: string, purpose: EmailCodePurpose) => {
@@ -49,7 +53,7 @@ export const sendEmailCodeAPI = (email: string, purpose: EmailCodePurpose) => {
     method: 'POST',
     url: '/sso/sendEmailCode',
     timeout: 30000,
-    auth: false,
+    auth: purpose === 'CHANGE_PASSWORD',
     header: {
       'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
     },
@@ -72,7 +76,7 @@ export const resetPasswordAPI = (data: ResetPasswordParam) => {
 
 /** 修改当前登录会员密码 */
 export const changePasswordAPI = (data: {
-  oldPassword: string
+  authCode: string
   newPassword: string
   confirmPassword: string
 }) => {
@@ -85,3 +89,7 @@ export const changePasswordAPI = (data: {
     data,
   })
 }
+
+export const sendChangePasswordEmailCodeAPI = () => http<EmailCodeSendResult>({
+  method: 'POST', url: '/sso/sendChangePasswordEmailCode', timeout: 30000,
+})

@@ -116,6 +116,9 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     public EmailCodeSendResult sendEmailCode(String email, EmailCodePurpose purpose) {
         String normalizedEmail = EmailVerificationServiceImpl.normalizeAndValidate(email);
         int registeredCount = memberEmailDao.countByEmail(normalizedEmail);
+        if (purpose == EmailCodePurpose.CHANGE_PASSWORD) {
+            Asserts.fail("请使用登录后的修改密码验证码入口");
+        }
         if (purpose == EmailCodePurpose.REGISTER && registeredCount > 0) {
             Asserts.fail("该邮箱已经注册");
         }
@@ -123,6 +126,14 @@ public class UmsMemberServiceImpl implements UmsMemberService {
             Asserts.fail("该邮箱尚未注册");
         }
         return emailVerificationService.sendCode(normalizedEmail, purpose);
+    }
+
+    @Override
+    public EmailCodeSendResult sendChangePasswordEmailCode() {
+        UmsMember current = getCurrentMember();
+        String email = memberEmailDao.selectEmailByMemberId(current.getId());
+        if (email == null || email.isBlank()) Asserts.fail("当前账号未绑定QQ邮箱");
+        return emailVerificationService.sendCode(email, EmailCodePurpose.CHANGE_PASSWORD);
     }
 
     @Override
@@ -141,22 +152,16 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     }
 
     @Override
-    public void changePassword(String oldPassword, String newPassword, String confirmPassword) {
-        if (oldPassword == null || oldPassword.isBlank()) {
-            Asserts.fail("请输入当前密码");
-        }
+    public void changePassword(String newPassword, String confirmPassword, String authCode) {
         validatePassword(newPassword);
         if (!newPassword.equals(confirmPassword)) {
             Asserts.fail("两次输入的新密码不一致");
         }
         UmsMember currentMember = getCurrentMember();
         UmsMember member = memberMapper.selectByPrimaryKey(currentMember.getId());
-        if (member == null || !passwordEncoder.matches(oldPassword, member.getPassword())) {
-            Asserts.fail("当前密码不正确");
-        }
-        if (passwordEncoder.matches(newPassword, member.getPassword())) {
-            Asserts.fail("新密码不能与当前密码相同");
-        }
+        String email = memberEmailDao.selectEmailByMemberId(member.getId());
+        if (email == null || email.isBlank()) Asserts.fail("当前账号未绑定QQ邮箱");
+        emailVerificationService.verifyCode(email, authCode, EmailCodePurpose.CHANGE_PASSWORD);
         member.setPassword(passwordEncoder.encode(newPassword));
         memberMapper.updateByPrimaryKeySelective(member);
         memberCacheService.delMember(member.getId());
@@ -214,6 +219,18 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     @Override
     public String refreshToken(String token) {
         return jwtTokenUtil.refreshHeadToken(token);
+    }
+
+    @Override
+    public String loginByEmailCode(String email, String authCode) {
+        String normalized = EmailVerificationServiceImpl.normalizeAndValidate(email);
+        Long memberId = memberEmailDao.selectMemberIdByEmail(normalized);
+        if (memberId == null) Asserts.fail("该邮箱尚未注册");
+        emailVerificationService.verifyCode(normalized, authCode, EmailCodePurpose.RESET_PASSWORD);
+        UmsMember member = memberMapper.selectByPrimaryKey(memberId);
+        UserDetails details = new MemberDetails(member);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities()));
+        return jwtTokenUtil.generateToken(details);
     }
 
     private void validatePassword(String password) {

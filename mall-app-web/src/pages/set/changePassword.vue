@@ -2,8 +2,9 @@
   <view class="page">
     <view class="form-card">
       <view class="input-item">
-        <text class="label">当前密码</text>
-        <input v-model="form.oldPassword" password maxlength="20" placeholder="请输入当前密码" />
+        <text class="label">邮箱验证码</text>
+        <input v-model="form.authCode" type="number" maxlength="6" placeholder="请输入6位验证码" />
+        <button size="mini" :disabled="sending || countdown > 0" @click="sendCode">{{ countdown > 0 ? `${countdown}秒后重试` : sending ? '发送中' : '获取验证码' }}</button>
       </view>
       <view class="input-item">
         <text class="label">新密码</text>
@@ -14,20 +15,38 @@
         <input v-model="form.confirmPassword" password maxlength="20" placeholder="请再次输入新密码" />
       </view>
     </view>
-    <text class="tip">修改成功后需要重新登录。</text>
+    <text class="tip">验证码发送至当前账号绑定的QQ邮箱，5分钟内有效，同一邮箱10秒内只能发送一次。修改成功后需要重新登录。</text>
     <button class="submit" :disabled="submitting" @click="submit">确认修改</button>
   </view>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onUnmounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { changePasswordAPI } from '@/apis/member'
+import { changePasswordAPI, sendChangePasswordEmailCodeAPI } from '@/apis/member'
 import { useMemberStore } from '@/stores/member'
 
 const memberStore = useMemberStore()
 const submitting = ref(false)
-const form = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const form = reactive({ newPassword: '', confirmPassword: '', authCode: '' })
+const sending = ref(false)
+const countdown = ref(0)
+let timer: ReturnType<typeof setInterval> | undefined
+onUnmounted(() => { if (timer) clearInterval(timer) })
+const sendCode = async () => {
+  if (sending.value || countdown.value > 0) return
+  sending.value = true
+  try {
+    const result = await sendChangePasswordEmailCodeAPI()
+    form.authCode = ''
+    const until = Date.now() + result.data.cooldownSeconds * 1000
+    const tick = () => { countdown.value = Math.max(0, Math.ceil((until - Date.now()) / 1000)) }
+    if (timer) clearInterval(timer)
+    tick()
+    timer = setInterval(tick, 1000)
+    uni.showToast({ title: '验证码已发送至绑定邮箱', icon: 'none' })
+  } finally { sending.value = false }
+}
 const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,20}$/
 
 onLoad(() => {
@@ -37,8 +56,9 @@ onLoad(() => {
 })
 
 const submit = async () => {
-  if (!form.oldPassword) {
-    uni.showToast({ title: '请输入当前密码', icon: 'none' })
+  if (submitting.value) return
+  if (!/^\d{6}$/.test(form.authCode)) {
+    uni.showToast({ title: '请输入6位邮箱验证码', icon: 'none' })
     return
   }
   if (!passwordPattern.test(form.newPassword)) {

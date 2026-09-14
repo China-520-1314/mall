@@ -76,16 +76,22 @@ public class UmsMemberController {
     }
 
     @Operation(summary = "修改当前登录会员密码")
+    @RequestMapping(value = "/sendChangePasswordEmailCode", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult<EmailCodeSendResult> sendChangePasswordEmailCode(Principal principal) {
+        if (principal == null) return CommonResult.unauthorized(null);
+        return CommonResult.success(memberService.sendChangePasswordEmailCode(), "验证码已发送，请查收QQ邮箱");
+    }
     @RequestMapping(value = "/changePassword", method = RequestMethod.POST)
     @ResponseBody
-    public CommonResult<Void> changePassword(@RequestParam @NotBlank String oldPassword,
-                                              @RequestParam @NotBlank String newPassword,
+    public CommonResult<Void> changePassword(@RequestParam @NotBlank String newPassword,
                                               @RequestParam @NotBlank String confirmPassword,
+                                              @RequestParam @NotBlank String authCode,
                                               Principal principal) {
         if (principal == null) {
             return CommonResult.unauthorized(null);
         }
-        memberService.changePassword(oldPassword, newPassword, confirmPassword);
+        memberService.changePassword(newPassword, confirmPassword, authCode);
         return CommonResult.success(null, "密码修改成功，请重新登录");
     }
 
@@ -98,6 +104,17 @@ public class UmsMemberController {
         if (token == null) {
             return CommonResult.validateFailed("QQ邮箱或密码错误");
         }
+        Map<String, String> tokenMap = new HashMap<>();
+        tokenMap.put("token", token);
+        tokenMap.put("tokenHead", tokenHead);
+        return CommonResult.success(tokenMap);
+    }
+
+    @Operation(summary = "QQ邮箱验证码登录")
+    @RequestMapping(value = "/loginByEmailCode", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult loginByEmailCode(@RequestParam String email, @RequestParam String authCode) {
+        String token = memberService.loginByEmailCode(email, authCode);
         Map<String, String> tokenMap = new HashMap<>();
         tokenMap.put("token", token);
         tokenMap.put("tokenHead", tokenHead);

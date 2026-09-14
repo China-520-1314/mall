@@ -31,6 +31,7 @@ public interface UmsMemberService {
      * 发送注册或重置密码验证码
      */
     EmailCodeSendResult sendEmailCode(String email, EmailCodePurpose purpose);
+    EmailCodeSendResult sendChangePasswordEmailCode();
 
     /**
      * 通过邮箱验证码重置密码
@@ -42,7 +43,7 @@ public interface UmsMemberService {
      * 修改当前登录会员密码。
      */
     @Transactional
-    void changePassword(String oldPassword, String newPassword, String confirmPassword);
+    void changePassword(String newPassword, String confirmPassword, String authCode);
 
     /**
      * 获取当前登录会员
@@ -64,6 +65,7 @@ public interface UmsMemberService {
      * 登录后获取token
      */
     String login(String email, String password);
+    String loginByEmailCode(String email, String authCode);
 
     /**
      * 刷新token

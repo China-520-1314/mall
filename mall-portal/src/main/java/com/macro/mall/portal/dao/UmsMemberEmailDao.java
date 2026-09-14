@@ -7,6 +7,7 @@ public interface UmsMemberEmailDao {
     int countByEmail(@Param("email") String email);
 
     Long selectMemberIdByEmail(@Param("email") String email);
+    String selectEmailByMemberId(@Param("memberId") Long memberId);
 
     int updateEmail(@Param("memberId") Long memberId, @Param("email") String email);
 }

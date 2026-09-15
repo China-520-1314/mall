@@ -7,6 +7,8 @@ import com.macro.mall.common.exception.Asserts;
 import com.macro.mall.mapper.OmsCompanyAddressMapper;
 import com.macro.mall.mapper.OmsOrderReturnApplyLogMapper;
 import com.macro.mall.mapper.OmsOrderReturnApplyMapper;
+import com.macro.mall.mapper.OmsOrderMapper;
+import com.macro.mall.mapper.OmsOrderItemMapper;
 import com.macro.mall.model.*;
 import com.macro.mall.portal.domain.OmsOrderReturnApplyParam;
 import com.macro.mall.portal.domain.PortalReturnApplyDetail;
@@ -16,6 +18,7 @@ import com.macro.mall.portal.service.UmsMemberService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -36,10 +39,36 @@ public class OmsPortalOrderReturnApplyServiceImpl implements OmsPortalOrderRetur
     private OmsCompanyAddressMapper companyAddressMapper;
     @Autowired
     private UmsMemberService memberService;
+    @Autowired
+    private OmsOrderMapper orderMapper;
+    @Autowired
+    private OmsOrderItemMapper orderItemMapper;
 
     @Override
+    @Transactional
     public int create(OmsOrderReturnApplyParam returnApply) {
         UmsMember member = memberService.getCurrentMember();
+        if (returnApply == null || returnApply.getOrderId() == null || returnApply.getProductId() == null) {
+            Asserts.fail("请选择订单和售后商品");
+        }
+        OmsOrder order = orderMapper.selectByPrimaryKey(returnApply.getOrderId());
+        if (order == null || !member.getId().equals(order.getMemberId()) || Integer.valueOf(1).equals(order.getDeleteStatus())) {
+            Asserts.fail("订单不存在");
+        }
+        if (order.getStatus() == null || !List.of(1, 2, 3).contains(order.getStatus())) {
+            Asserts.fail("当前订单状态不允许申请售后");
+        }
+        OmsOrderItemExample itemExample = new OmsOrderItemExample();
+        itemExample.createCriteria().andOrderIdEqualTo(order.getId()).andProductIdEqualTo(returnApply.getProductId());
+        List<OmsOrderItem> items = orderItemMapper.selectByExample(itemExample);
+        if (items.size() != 1) {
+            Asserts.fail("无法确定售后订单项，请选择具体商品规格");
+        }
+        OmsOrderItem item = items.get(0);
+        if (returnApply.getProductCount() == null || returnApply.getProductCount() < 1
+                || returnApply.getProductCount() > item.getProductQuantity()) {
+            Asserts.fail("退货数量超出购买数量");
+        }
         // 防止同一商品存在处理中的售后单
         OmsOrderReturnApplyExample example = new OmsOrderReturnApplyExample();
         example.createCriteria()
@@ -51,6 +80,14 @@ public class OmsPortalOrderReturnApplyServiceImpl implements OmsPortalOrderRetur
         }
         OmsOrderReturnApply realApply = new OmsOrderReturnApply();
         BeanUtils.copyProperties(returnApply, realApply);
+        // 商品信息和实付单价由订单项回填，拒绝客户端篡改退款基数。
+        realApply.setOrderSn(order.getOrderSn());
+        realApply.setProductName(item.getProductName());
+        realApply.setProductPic(item.getProductPic());
+        realApply.setProductBrand(item.getProductBrand());
+        realApply.setProductAttr(item.getProductAttr());
+        realApply.setProductPrice(item.getProductPrice());
+        realApply.setProductRealPrice(item.getRealAmount());
         // 会员信息以服务端登录态为准，不信任前端传值
         realApply.setMemberUsername(member.getUsername());
         realApply.setCreateTime(new Date());

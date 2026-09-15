@@ -7,7 +7,12 @@ import com.macro.mall.portal.dao.HomeDao;
 import com.macro.mall.portal.domain.FlashPromotionProduct;
 import com.macro.mall.portal.domain.HomeContentResult;
 import com.macro.mall.portal.domain.HomeFlashPromotion;
+import com.macro.mall.portal.domain.MemberReadHistory;
+import com.macro.mall.portal.domain.MemberProductCollection;
+import com.macro.mall.portal.repository.MemberReadHistoryRepository;
+import com.macro.mall.portal.repository.MemberProductCollectionRepository;
 import com.macro.mall.portal.service.HomeService;
+import com.macro.mall.portal.service.UmsMemberService;
 import com.macro.mall.portal.util.DateUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +20,11 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.Date;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Comparator;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * 首页内容管理Service实现类
@@ -32,6 +42,18 @@ public class HomeServiceImpl implements HomeService {
     private SmsFlashPromotionSessionMapper promotionSessionMapper;
     @Autowired
     private PmsProductMapper productMapper;
+    @Autowired
+    private OmsOrderMapper orderMapper;
+    @Autowired
+    private OmsOrderItemMapper orderItemMapper;
+    @Autowired
+    private OmsCartItemMapper cartItemMapper;
+    @Autowired
+    private MemberReadHistoryRepository readHistoryRepository;
+    @Autowired
+    private MemberProductCollectionRepository collectionRepository;
+    @Autowired
+    private UmsMemberService memberService;
     @Autowired
     private PmsProductCategoryMapper productCategoryMapper;
     @Autowired
@@ -57,13 +79,54 @@ public class HomeServiceImpl implements HomeService {
 
     @Override
     public List<PmsProduct> recommendProductList(Integer pageSize, Integer pageNum) {
-        // TODO: 2019/1/29 暂时默认推荐所有商品
-        PageHelper.startPage(pageNum,pageSize);
+        if (pageSize == null || pageSize < 1 || pageSize > 50 || pageNum == null || pageNum < 1) {
+            throw new IllegalArgumentException("推荐分页参数无效，每页须为1至50条");
+        }
         PmsProductExample example = new PmsProductExample();
         example.createCriteria()
                 .andDeleteStatusEqualTo(0)
                 .andPublishStatusEqualTo(1);
-        return productMapper.selectByExample(example);
+        List<PmsProduct> products = productMapper.selectByExample(example);
+        try {
+            Long memberId = memberService.getCurrentMember().getId();
+            Map<Long, Integer> category = new HashMap<>(), brand = new HashMap<>();
+            OmsCartItemExample cartExample = new OmsCartItemExample();
+            cartExample.createCriteria().andMemberIdEqualTo(memberId).andDeleteStatusEqualTo(0);
+            cartItemMapper.selectByExample(cartExample).forEach(i -> addPreference(products, i.getProductId(), category, brand, 4));
+            List<MemberReadHistory> reads = readHistoryRepository.findByMemberIdOrderByCreateTimeDesc(memberId, PageRequest.of(0, 100)).getContent();
+            List<MemberProductCollection> collections = collectionRepository.findByMemberId(memberId, PageRequest.of(0, 100)).getContent();
+            OmsOrderExample orderExample = new OmsOrderExample();
+            orderExample.createCriteria().andMemberIdEqualTo(memberId).andStatusEqualTo(3);
+            List<Long> completedOrderIds = orderMapper.selectByExample(orderExample).stream().map(OmsOrder::getId).toList();
+            if (!completedOrderIds.isEmpty()) {
+                OmsOrderItemExample itemExample = new OmsOrderItemExample();
+                itemExample.createCriteria().andOrderIdIn(completedOrderIds);
+                orderItemMapper.selectByExample(itemExample).forEach(i -> addPreference(products, i.getProductId(), category, brand, 8));
+            }
+            reads.forEach(r -> addPreference(products, r.getProductId(), category, brand, 2));
+            collections.forEach(r -> addPreference(products, r.getProductId(), category, brand, 5));
+            products.sort(Comparator.comparingDouble((PmsProduct p) -> score(p, category, brand)).reversed());
+        } catch (Exception ignored) {
+            products.sort(Comparator.comparingInt((PmsProduct p) -> Math.max(0, p.getSale() == null ? 0 : p.getSale())).reversed()
+                    .thenComparing(PmsProduct::getId));
+        }
+        long offset = (long) (pageNum - 1) * pageSize;
+        if (offset >= products.size()) return List.of();
+        int from = (int) offset;
+        return from >= products.size() ? List.of() : new ArrayList<>(products.subList(from, Math.min(products.size(), from + pageSize)));
+    }
+
+    private void addPreference(List<PmsProduct> products, Long productId, Map<Long, Integer> category, Map<Long, Integer> brand, int weight) {
+        products.stream().filter(p -> p.getId().equals(productId)).findFirst().ifPresent(p -> {
+            if (p.getProductCategoryId() != null) category.merge(p.getProductCategoryId(), weight, Integer::sum);
+            if (p.getBrandId() != null) brand.merge(p.getBrandId(), weight, Integer::sum);
+        });
+    }
+
+    private double score(PmsProduct p, Map<Long, Integer> category, Map<Long, Integer> brand) {
+        return category.getOrDefault(p.getProductCategoryId(), 0) * 10D
+                + brand.getOrDefault(p.getBrandId(), 0) * 6D
+                + Math.min(p.getSale() == null ? 0 : p.getSale(), 100000) * 0.01D;
     }
 
     @Override

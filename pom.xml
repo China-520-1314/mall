@@ -49,6 +49,7 @@
         <spring-data-commons.version>3.5.11</spring-data-commons.version>
         <aliyun-oss.version>3.18.5</aliyun-oss.version>
         <alipay-sdk.version>4.40.630.ALL</alipay-sdk.version>
+        <wechatpay-java.version>0.2.17</wechatpay-java.version>
         <logstash-logback.version>8.0</logstash-logback.version>
         <minio.version>8.6.0</minio.version>
         <okhttp3.version>5.1.0</okhttp3.version>
@@ -271,6 +272,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
+                    <!-- JDK 23 起需显式启用 Lombok 注解处理。 -->
+                    <proc>full</proc>
                     <compilerArgs>
                         <arg>-parameters</arg>
                     </compilerArgs>

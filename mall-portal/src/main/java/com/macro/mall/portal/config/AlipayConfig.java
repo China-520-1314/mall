@@ -54,4 +54,9 @@ public class AlipayConfig {
      * 生成签名字符串所使用的签名算法类型
      */
     private String signType = "RSA2";
+    /** 可选易支付网关配置；配置后网页支付优先使用易支付。 */
+    private String epayUrl;
+    private String epayPid;
+    private String epayKey;
+    private String epayType = "alipay";
 }

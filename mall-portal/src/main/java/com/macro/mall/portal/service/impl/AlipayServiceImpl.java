@@ -19,6 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.TreeMap;
 
 /**
  * @auther macrozheng
@@ -70,6 +74,21 @@ public class AlipayServiceImpl implements AlipayService {
 
     @Override
     public String notify(Map<String, String> params) {
+        if (StrUtil.isNotBlank(alipayConfig.getEpayKey())) {
+            String sign = params.get("sign");
+            String tradeStatus = params.get("trade_status");
+            String source = params.entrySet().stream().filter(e -> !"sign".equals(e.getKey()) && !"sign_type".equals(e.getKey()))
+                    .filter(e -> StrUtil.isNotBlank(e.getValue())).sorted(Map.Entry.comparingByKey())
+                    .map(e -> e.getKey() + "=" + e.getValue()).collect(java.util.stream.Collectors.joining("&"));
+            try {
+                byte[] digest = MessageDigest.getInstance("MD5").digest((source + alipayConfig.getEpayKey()).getBytes(StandardCharsets.UTF_8));
+                StringBuilder expected = new StringBuilder(); for (byte b : digest) expected.append(String.format("%02x", b));
+                if (expected.toString().equalsIgnoreCase(sign) && ("TRADE_SUCCESS".equals(tradeStatus) || "success".equals(tradeStatus))) {
+                    portalOrderService.paySuccessByOrderSn(params.get("out_trade_no"), 1); return "success";
+                }
+                return "failure";
+            } catch (Exception e) { log.error("易支付回调校验异常", e); return "failure"; }
+        }
         String result = "failure";
         boolean signVerified = false;
         try {
@@ -131,6 +150,31 @@ public class AlipayServiceImpl implements AlipayService {
 
     @Override
     public String webPay(AliPayParam aliPayParam) {
+        if (StrUtil.isNotBlank(alipayConfig.getEpayUrl()) && StrUtil.isNotBlank(alipayConfig.getEpayPid())
+                && StrUtil.isNotBlank(alipayConfig.getEpayKey())) {
+            Map<String, String> params = new TreeMap<>();
+            params.put("pid", alipayConfig.getEpayPid());
+            params.put("type", StrUtil.blankToDefault(alipayConfig.getEpayType(), "alipay"));
+            params.put("out_trade_no", aliPayParam.getOutTradeNo());
+            params.put("notify_url", alipayConfig.getNotifyUrl());
+            params.put("return_url", alipayConfig.getReturnUrl());
+            params.put("name", aliPayParam.getSubject());
+            params.put("money", aliPayParam.getTotalAmount().toPlainString());
+            StringBuilder signText = new StringBuilder();
+            params.forEach((k, v) -> { if (StrUtil.isNotBlank(v)) signText.append(k).append('=').append(v).append('&'); });
+            if (!signText.isEmpty()) signText.setLength(signText.length() - 1);
+            signText.append(alipayConfig.getEpayKey());
+            try {
+                byte[] digest = MessageDigest.getInstance("MD5").digest(signText.toString().getBytes(StandardCharsets.UTF_8));
+                StringBuilder sign = new StringBuilder();
+                for (byte b : digest) sign.append(String.format("%02x", b));
+                params.put("sign", sign.toString());
+                params.put("sign_type", "MD5");
+                return alipayConfig.getEpayUrl() + "?" + params.entrySet().stream()
+                        .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                        .collect(java.util.stream.Collectors.joining("&"));
+            } catch (Exception e) { throw new IllegalStateException("易支付签名失败", e); }
+        }
         AlipayTradeWapPayRequest request = new AlipayTradeWapPayRequest ();
         if(StrUtil.isNotEmpty(alipayConfig.getNotifyUrl())){
             //异步接收地址，公网可访问

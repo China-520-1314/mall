@@ -63,4 +63,18 @@ alipay:
   appPrivateKey: your appPrivateKey
   returnUrl: http://192.168.3.101:8060/#/pages/money/paySuccess
   notifyUrl:
+  epayUrl: ${EPAY_URL:}
+  epayPid: ${EPAY_PID:}
+  epayKey: ${EPAY_KEY:}
+  epayType: ${EPAY_TYPE:alipay}
+
+wechat-pay:
+  enabled: ${WECHAT_PAY_ENABLED:false}
+  app-id: ${WECHAT_PAY_APP_ID:}
+  mch-id: ${WECHAT_PAY_MCH_ID:}
+  serial-no: ${WECHAT_PAY_SERIAL_NO:}
+  private-key-path: ${WECHAT_PAY_PRIVATE_KEY_PATH:}
+  private-key: ${WECHAT_PAY_PRIVATE_KEY:}
+  api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+  notify-url: ${WECHAT_PAY_NOTIFY_URL:}
 

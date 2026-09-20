@@ -102,6 +102,37 @@ public class PmsPortalProductController {
         return CommonResult.success(null, "评价提交成功");
     }
 
+    @Operation(summary = "提交商品体验评价，无需购买")
+    @RequestMapping(value = "/comment", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult<Void> createProductComment(@RequestBody @jakarta.validation.Valid com.macro.mall.portal.domain.ProductCommentParam param,
+                                                    HttpServletRequest request, Principal principal) {
+        if (principal == null) return CommonResult.unauthorized(null);
+        portalProductService.createProductComment(param, request.getRemoteAddr());
+        return CommonResult.success(null, "评价提交成功");
+    }
+
+    @Autowired
+    private com.macro.mall.portal.service.impl.CommentReplyService replyService;
+
+    @GetMapping("/comments/{id}/replies")
+    @ResponseBody
+    public CommonResult<CommonPage<com.macro.mall.model.PmsCommentReplay>> replies(@PathVariable Long id,
+            @RequestParam(defaultValue="1") @Min(1) int pageNum,
+            @RequestParam(defaultValue="10") @Min(1) @Max(50) int pageSize) {
+        return CommonResult.success(replyService.list(id,pageNum,pageSize));
+    }
+
+    @PostMapping("/comments/{id}/replies")
+    @ResponseBody
+    public CommonResult<Void> reply(@PathVariable Long id,
+            @RequestBody @jakarta.validation.Valid com.macro.mall.portal.domain.ProductCommentReplyParam param,
+            Principal principal) {
+        if(principal==null) return CommonResult.unauthorized(null);
+        replyService.create(id,param.getContent());
+        return CommonResult.success(null,"回复成功");
+    }
+
     @Operation(summary = "上传评价图片")
     @RequestMapping(value = "/comment/image", method = RequestMethod.POST)
     @ResponseBody

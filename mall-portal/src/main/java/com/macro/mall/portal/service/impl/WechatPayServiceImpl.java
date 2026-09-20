@@ -8,9 +8,11 @@ import com.macro.mall.portal.domain.OmsOrderDetail;
 import com.macro.mall.portal.service.OmsPortalOrderService;
 import com.macro.mall.portal.service.WechatPayService;
 import com.wechat.pay.java.core.RSAAutoCertificateConfig;
+import com.wechat.pay.java.core.RSAPublicKeyConfig;
 import com.wechat.pay.java.core.Config;
 import com.wechat.pay.java.core.notification.NotificationParser;
 import com.wechat.pay.java.core.notification.AutoCertificateNotificationConfig;
+import com.wechat.pay.java.core.notification.RSAPublicKeyNotificationConfig;
 import com.wechat.pay.java.core.notification.RequestParam;
 import com.wechat.pay.java.service.payments.model.Transaction;
 import com.wechat.pay.java.service.payments.nativepay.NativePayService;
@@ -45,6 +47,14 @@ public class WechatPayServiceImpl implements WechatPayService {
             Asserts.fail("微信支付未配置完整商户参数");
         if (nativePayService == null) synchronized (this) {
             if (nativePayService == null) {
+                if (!blank(config.getPublicKeyId()) && !blank(config.getPublicKeyPath())) {
+                    RSAPublicKeyConfig.Builder pb = new RSAPublicKeyConfig.Builder().merchantId(config.getMchId()).merchantSerialNumber(config.getSerialNo())
+                            .apiV3Key(config.getApiV3Key()).publicKeyFromPath(config.getPublicKeyPath()).publicKeyId(config.getPublicKeyId());
+                    if (!blank(config.getPrivateKeyPath())) pb.privateKeyFromPath(config.getPrivateKeyPath()); else pb.privateKey(config.getPrivateKey());
+                    Config c = pb.build();
+                    nativePayService = new NativePayService.Builder().config(c).build();
+                    return nativePayService;
+                }
                 RSAAutoCertificateConfig.Builder b = new RSAAutoCertificateConfig.Builder()
                         .merchantId(config.getMchId()).merchantSerialNumber(config.getSerialNo()).apiV3Key(config.getApiV3Key());
                 if (!blank(config.getPrivateKeyPath())) b.privateKeyFromPath(config.getPrivateKeyPath()); else b.privateKey(config.getPrivateKey());
@@ -71,10 +81,20 @@ public class WechatPayServiceImpl implements WechatPayService {
         RequestParam p = new RequestParam.Builder().serialNumber(request.getHeader("Wechatpay-Serial"))
                 .nonce(request.getHeader("Wechatpay-Nonce")).signature(request.getHeader("Wechatpay-Signature"))
                 .timestamp(request.getHeader("Wechatpay-Timestamp")).body(body).build();
+        if (!blank(config.getPublicKeyId()) && !blank(config.getPublicKeyPath())) {
+            RSAPublicKeyNotificationConfig nc = new RSAPublicKeyNotificationConfig.Builder().publicKeyFromPath(config.getPublicKeyPath())
+                    .publicKeyId(config.getPublicKeyId()).apiV3Key(config.getApiV3Key()).build();
+            Transaction t = new NotificationParser(nc).parse(p, Transaction.class);
+            handleNotificationTransaction(t);
+            return;
+        }
         AutoCertificateNotificationConfig.Builder nb = new AutoCertificateNotificationConfig.Builder()
                 .merchantId(config.getMchId()).merchantSerialNumber(config.getSerialNo()).apiV3Key(config.getApiV3Key());
         if (!blank(config.getPrivateKeyPath())) nb.privateKeyFromPath(config.getPrivateKeyPath()); else nb.privateKey(config.getPrivateKey());
         Transaction t = new NotificationParser(nb.build()).parse(p, Transaction.class);
+        handleNotificationTransaction(t);
+    }
+    private void handleNotificationTransaction(Transaction t) {
         if (t.getTradeState() != Transaction.TradeStateEnum.SUCCESS || t.getAmount() == null) return;
         com.macro.mall.model.OmsOrderExample example = new com.macro.mall.model.OmsOrderExample();
         example.createCriteria().andOrderSnEqualTo(t.getOutTradeNo());

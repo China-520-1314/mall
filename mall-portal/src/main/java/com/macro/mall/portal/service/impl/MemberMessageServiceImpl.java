@@ -59,6 +59,11 @@ public class MemberMessageServiceImpl implements MemberMessageService {
     }
 
     @Override
+    public int markAllRead() {
+        return jdbcTemplate.update("UPDATE ums_member_message SET read_status=1 WHERE member_id=? AND read_status=0", memberService.getCurrentMember().getId());
+    }
+
+    @Override
     public int markRead(Long id) {
         if (id == null) {
             Asserts.fail("消息不存在");

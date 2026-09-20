@@ -18,4 +18,6 @@ public class WechatPayConfig {
     private String privateKey;
     private String apiV3Key;
     private String notifyUrl;
+    private String publicKeyId;
+    private String publicKeyPath;
 }

@@ -58,6 +58,7 @@ secure:
       - /assistant/chat
       - /brand/**
       - /alipay/**
+      - /wechatpay/notify
 
 springdoc:
   swagger-ui:
@@ -103,6 +104,9 @@ ciyuanshen:
   api-key: ${CIYUANSHEN_API_KEY:}
   text-api-key: ${CIYUANSHEN_TEXT_API_KEY:}
   model: ${CIYUANSHEN_MODEL:gpt-5.6-terra}
+  fallback-base-url: ${CIYUANSHEN_FALLBACK_BASE_URL:https://api.ciyuanshen.top/v1}
+  fallback-api-key: ${CIYUANSHEN_FALLBACK_API_KEY:}
+  fallback-model: ${CIYUANSHEN_FALLBACK_MODEL:claude-opus-5}
   timeout-seconds: ${CIYUANSHEN_TIMEOUT_SECONDS:30}
   max-history: ${CIYUANSHEN_MAX_HISTORY:8}
   max-message-length: ${CIYUANSHEN_MAX_MESSAGE_LENGTH:800}
@@ -136,4 +140,3 @@ rabbitmq:
   queue:
     name:
       cancelOrder: cancelOrderQueue
-

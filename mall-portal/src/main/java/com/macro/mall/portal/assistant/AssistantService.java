@@ -44,6 +44,12 @@ public class AssistantService {
             return response(client.complete(SYSTEM_INSTRUCTIONS, buildInput(message, history)), false, message);
         } catch (CiyuanshenClient.AssistantClientException ex) {
             LOGGER.warn("智能客服上游调用失败：{}", ex.getMessage());
+            try {
+                LOGGER.info("切换备用模型 {}", properties.getFallbackModel());
+                return response(client.completeFallback(SYSTEM_INSTRUCTIONS, buildInput(message, history)), false, message);
+            } catch (CiyuanshenClient.AssistantClientException fallbackEx) {
+                LOGGER.warn("备用模型调用失败：{}", fallbackEx.getMessage());
+            }
             return response(localReply(message), true, message);
         }
     }

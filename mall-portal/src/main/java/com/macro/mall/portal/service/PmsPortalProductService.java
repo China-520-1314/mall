@@ -1,5 +1,7 @@
 package com.macro.mall.portal.service;
 
+import com.macro.mall.portal.domain.ProductCommentParam;
+
 import com.macro.mall.model.PmsProduct;
 import com.macro.mall.model.PmsComment;
 import com.macro.mall.common.api.CommonPage;
@@ -35,4 +37,5 @@ public interface PmsPortalProductService {
     ProductCommentSummary getCommentSummary(Long productId);
 
     void createComments(ProductCommentBatchParam param, String clientIp);
+    void createProductComment(ProductCommentParam param, String clientIp);
 }

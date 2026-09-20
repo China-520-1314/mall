@@ -5,14 +5,17 @@ import com.macro.mall.dao.OmsOrderReturnApplyDao;
 import com.macro.mall.dto.OmsOrderReturnApplyResult;
 import com.macro.mall.dto.OmsReturnApplyQueryParam;
 import com.macro.mall.dto.OmsUpdateStatusParam;
+import com.macro.mall.dto.UmsMemberMessageParam;
 import com.macro.mall.mapper.OmsOrderReturnApplyLogMapper;
 import com.macro.mall.mapper.OmsOrderReturnApplyMapper;
 import com.macro.mall.model.OmsOrderReturnApply;
 import com.macro.mall.model.OmsOrderReturnApplyExample;
 import com.macro.mall.model.OmsOrderReturnApplyLog;
 import com.macro.mall.service.OmsOrderReturnApplyService;
+import com.macro.mall.service.UmsMemberMessageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -30,6 +33,8 @@ public class OmsOrderReturnApplyServiceImpl implements OmsOrderReturnApplyServic
     private OmsOrderReturnApplyMapper returnApplyMapper;
     @Autowired
     private OmsOrderReturnApplyLogMapper returnApplyLogMapper;
+    @Autowired
+    private UmsMemberMessageService memberMessageService;
 
     @Override
     public List<OmsOrderReturnApply> list(OmsReturnApplyQueryParam queryParam, Integer pageSize, Integer pageNum) {
@@ -45,6 +50,7 @@ public class OmsOrderReturnApplyServiceImpl implements OmsOrderReturnApplyServic
     }
 
     @Override
+    @Transactional
     public int updateStatus(Long id, OmsUpdateStatusParam statusParam) {
         Integer status = statusParam.getStatus();
         OmsOrderReturnApply current = returnApplyMapper.selectByPrimaryKey(id);
@@ -103,6 +109,11 @@ public class OmsOrderReturnApplyServiceImpl implements OmsOrderReturnApplyServic
                 operator = statusParam.getReceiveMan();
             }
             saveLog(id, status, logTitle, logNote, 1, operator);
+            if (Integer.valueOf(1).equals(status)) {
+                sendReturnApprovedMessage(current);
+            } else if (Integer.valueOf(2).equals(status)) {
+                sendRefundCompletedMessage(current);
+            }
         }
         return count;
     }
@@ -126,5 +137,32 @@ public class OmsOrderReturnApplyServiceImpl implements OmsOrderReturnApplyServic
         log.setOperatorName(operatorName);
         log.setCreateTime(new Date());
         returnApplyLogMapper.insert(log);
+    }
+
+    private void sendReturnApprovedMessage(OmsOrderReturnApply apply) {
+        UmsMemberMessageParam message = new UmsMemberMessageParam();
+        message.setTitle("售后申请已通过");
+        message.setContent("您的订单 " + displayOrderSn(apply) + " 中“" + displayProductName(apply)
+                + "”的退货申请已通过，请按售后详情中的地址寄回商品并填写物流信息。");
+        memberMessageService.sendToOrderMember(apply.getOrderId(), message);
+    }
+
+    private void sendRefundCompletedMessage(OmsOrderReturnApply apply) {
+        String amount = apply.getReturnAmount() == null ? "" : "，退款金额 ¥" + apply.getReturnAmount().toPlainString();
+        UmsMemberMessageParam message = new UmsMemberMessageParam();
+        message.setTitle("退款成功");
+        message.setContent("您的订单 " + displayOrderSn(apply) + " 中“" + displayProductName(apply)
+                + "”的售后已完成" + amount + "。请留意原支付账户的到账情况。");
+        memberMessageService.sendToOrderMember(apply.getOrderId(), message);
+    }
+
+    private String displayOrderSn(OmsOrderReturnApply apply) {
+        return apply.getOrderSn() == null || apply.getOrderSn().trim().isEmpty()
+                ? String.valueOf(apply.getOrderId()) : apply.getOrderSn().trim();
+    }
+
+    private String displayProductName(OmsOrderReturnApply apply) {
+        return apply.getProductName() == null || apply.getProductName().trim().isEmpty()
+                ? "商品" : apply.getProductName().trim();
     }
 }

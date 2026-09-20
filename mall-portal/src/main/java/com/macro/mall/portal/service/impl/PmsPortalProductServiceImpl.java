@@ -18,6 +18,7 @@ import com.macro.mall.common.api.CommonPage;
 import com.macro.mall.common.exception.Asserts;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,23 +60,31 @@ public class PmsPortalProductServiceImpl implements PmsPortalProductService {
     private UmsMemberService memberService;
     @Autowired
     private PortalProductCommentDao productCommentDao;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Override
     public List<PmsProduct> search(String keyword, Long brandId, Long productCategoryId, Integer pageNum, Integer pageSize, Integer sort) {
         PageHelper.startPage(pageNum, pageSize);
         PmsProductExample example = new PmsProductExample();
-        PmsProductExample.Criteria criteria = example.createCriteria();
-        criteria.andDeleteStatusEqualTo(0);
-        criteria.andPublishStatusEqualTo(1);
-        if (StrUtil.isNotEmpty(keyword)) {
-            criteria.andNameLike("%" + keyword + "%");
+        String term = keyword == null ? "" : keyword.trim();
+        if (!term.isEmpty()) {
+            String pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            example.or().andNameLike(pattern);
+            example.or().andProductSnLike(pattern);
+            example.or().andKeywordsLike(pattern);
+            example.or().andProductCategoryNameLike(pattern);
+            example.or().andBrandNameLike(pattern);
+        } else {
+            example.createCriteria();
         }
-        if (brandId != null) {
-            criteria.andBrandIdEqualTo(brandId);
+        // Apply restrictions to every OR branch; user text is bound, never used as SQL syntax.
+        for (PmsProductExample.Criteria criteria : example.getOredCriteria()) {
+            criteria.andDeleteStatusEqualTo(0).andPublishStatusEqualTo(1);
+            if (brandId != null) criteria.andBrandIdEqualTo(brandId);
+            if (productCategoryId != null) criteria.andProductCategoryIdEqualTo(productCategoryId);
         }
-        if (productCategoryId != null) {
-            criteria.andProductCategoryIdEqualTo(productCategoryId);
-        }
+        example.setOrderByClause("id desc");
         //1->按新品；2->按销量；3->价格从低到高；4->价格从高到低
         if (sort == 1) {
             example.setOrderByClause("id desc");
@@ -235,6 +244,8 @@ public class PmsPortalProductServiceImpl implements PmsPortalProductService {
             comment.setReadCount(0);
             comment.setReplayCount(0);
             productCommentDao.insert(comment, member.getId(), order.getId(), orderItem.getId());
+            createCommentMessage(member.getId(), order.getId(), orderItem.getProductName(),
+                    comment.getStar(), comment.getContent());
         }
 
         if (productCommentDao.countByOrderId(order.getId()) >= orderItems.size()) {
@@ -243,6 +254,38 @@ public class PmsPortalProductServiceImpl implements PmsPortalProductService {
             updateOrder.setCommentTime(new Date());
             orderMapper.updateByPrimaryKeySelective(updateOrder);
         }
+    }
+
+    /** 评价提交成功后给当前会员创建站内提醒，和评价写入使用同一事务。 */
+    private void createCommentMessage(Long memberId, Long orderId, String productName,
+                                      Integer star, String content) {
+        String safeProductName = productName == null ? "商品" : productName.trim();
+        String safeContent = content == null ? "" : content.trim();
+        if (safeProductName.length() > 80) safeProductName = safeProductName.substring(0, 80);
+        if (safeContent.length() > 700) safeContent = safeContent.substring(0, 700) + "...";
+        String rating = star == null ? "未填写星级" : star + "星";
+        String message = "您对“" + safeProductName + "”的评价已提交（" + rating + "）：" + safeContent;
+        jdbcTemplate.update(
+                "INSERT INTO ums_member_message(member_id, order_id, title, content, read_status, create_time) "
+                        + "VALUES (?, ?, ?, ?, 0, NOW())",
+                memberId, orderId, "评价提交成功", message);
+    }
+
+    @Override
+    @Transactional
+    public void createProductComment(ProductCommentParam param, String clientIp) {
+        if (param.getProductId() == null || StrUtil.isBlank(param.getContent())) Asserts.fail("商品和评价内容不能为空");
+        PmsProduct product = getPublishedProduct(param.getProductId());
+        UmsMember member = memberService.getCurrentMember();
+        PmsComment comment = new PmsComment();
+        comment.setProductId(product.getId()); comment.setProductName(product.getName());
+        comment.setMemberNickName(member.getNickname() == null ? member.getUsername() : member.getNickname());
+        comment.setMemberIcon(member.getIcon()); comment.setStar(param.getStar());
+        comment.setContent(param.getContent().trim()); comment.setProductAttribute("用户体验评价");
+        comment.setPics(normalizePictures(param.getPics())); comment.setMemberIp(clientIp);
+        comment.setCreateTime(new Date()); comment.setShowStatus(1); comment.setCollectCouont(0);
+        comment.setReadCount(0); comment.setReplayCount(0);
+        productCommentDao.insert(comment, member.getId(), null, null);
     }
 
     private String normalizePictures(String pics) {

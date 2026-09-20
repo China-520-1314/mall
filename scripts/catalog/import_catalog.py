@@ -152,7 +152,7 @@ def apply_import(document, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image-base-url', default='http://localhost:8085')
+    parser.add_argument('--image-base-url', default='https://mall.huahang.me')
     parser.add_argument('--db-host', default='127.0.0.1')
     parser.add_argument('--db-user', default=os.getenv('MALL_DATASOURCE_USERNAME', 'root'))
     parser.add_argument('--database', default='mall')

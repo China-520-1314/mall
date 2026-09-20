@@ -9,4 +9,6 @@ public interface MemberMessageService {
     int unreadCount();
 
     int markRead(Long id);
+
+    int markAllRead();
 }

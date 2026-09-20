@@ -34,6 +34,12 @@ public class MemberMessageController {
     }
 
     @Operation(summary = "标记站内信已读")
+    @PostMapping("/read-all")
+    @ResponseBody
+    public CommonResult<Integer> markAllRead() {
+        return CommonResult.success(memberMessageService.markAllRead());
+    }
+
     @PostMapping("/read/{id}")
     @ResponseBody
     public CommonResult<Integer> markRead(@PathVariable Long id) {

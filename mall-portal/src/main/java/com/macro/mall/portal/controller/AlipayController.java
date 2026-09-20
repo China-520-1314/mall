@@ -47,13 +47,18 @@ public class AlipayController {
     @RequestMapping(value = "/webPay", method = RequestMethod.GET)
     public void webPay(AliPayParam aliPayParam, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=" + alipayConfig.getCharset());
-        response.getWriter().write(alipayService.webPay(aliPayParam));
+        String payment = alipayService.webPay(aliPayParam);
+        if (payment != null && payment.startsWith("https://")) {
+            response.sendRedirect(payment);
+        } else {
+            response.getWriter().write(payment);
+        }
         response.getWriter().flush();
         response.getWriter().close();
     }
 
     @Operation(summary = "支付宝异步回调",description = "必须为POST请求，执行成功返回success，执行失败返回failure")
-    @RequestMapping(value = "/notify", method = RequestMethod.POST)
+    @RequestMapping(value = "/notify", method = {RequestMethod.GET, RequestMethod.POST})
     public String notify(HttpServletRequest request){
         Map<String, String> params = new HashMap<>();
         Map<String, String[]> requestParams = request.getParameterMap();

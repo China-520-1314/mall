@@ -15,6 +15,9 @@ public class AssistantProperties {
     private String apiKey = "";
     private String textApiKey = "";
     private String model = "gpt-5.6-terra";
+    private String fallbackBaseUrl = "https://api.ciyuanshen.top/v1";
+    private String fallbackApiKey = "";
+    private String fallbackModel = "claude-opus-5";
     private int timeoutSeconds = 30;
     private int maxHistory = 8;
     private int maxMessageLength = 800;
@@ -57,6 +60,12 @@ public class AssistantProperties {
     public void setModel(String model) {
         this.model = model;
     }
+    public String getFallbackBaseUrl() { return fallbackBaseUrl; }
+    public void setFallbackBaseUrl(String fallbackBaseUrl) { this.fallbackBaseUrl = fallbackBaseUrl; }
+    public String getFallbackApiKey() { return fallbackApiKey; }
+    public void setFallbackApiKey(String fallbackApiKey) { this.fallbackApiKey = fallbackApiKey; }
+    public String getFallbackModel() { return fallbackModel; }
+    public void setFallbackModel(String fallbackModel) { this.fallbackModel = fallbackModel; }
 
     public int getTimeoutSeconds() {
         return timeoutSeconds;

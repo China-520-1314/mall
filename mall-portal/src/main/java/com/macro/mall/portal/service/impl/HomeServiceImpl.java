@@ -23,7 +23,10 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 
 /**
@@ -86,13 +89,15 @@ public class HomeServiceImpl implements HomeService {
         example.createCriteria()
                 .andDeleteStatusEqualTo(0)
                 .andPublishStatusEqualTo(1);
-        List<PmsProduct> products = productMapper.selectByExample(example);
+        List<PmsProduct> products = new ArrayList<>(productMapper.selectByExample(example));
+        List<PmsProduct> discovery = new ArrayList<>(products);
+        discovery.sort(Comparator.comparing(PmsProduct::getId).reversed());
+        Map<Long, Integer> category = new HashMap<>(), brand = new HashMap<>(), productPreference = new HashMap<>();
         try {
             Long memberId = memberService.getCurrentMember().getId();
-            Map<Long, Integer> category = new HashMap<>(), brand = new HashMap<>();
             OmsCartItemExample cartExample = new OmsCartItemExample();
             cartExample.createCriteria().andMemberIdEqualTo(memberId).andDeleteStatusEqualTo(0);
-            cartItemMapper.selectByExample(cartExample).forEach(i -> addPreference(products, i.getProductId(), category, brand, 4));
+            cartItemMapper.selectByExample(cartExample).forEach(i -> addPreference(products, i.getProductId(), category, brand, productPreference, 4));
             List<MemberReadHistory> reads = readHistoryRepository.findByMemberIdOrderByCreateTimeDesc(memberId, PageRequest.of(0, 100)).getContent();
             List<MemberProductCollection> collections = collectionRepository.findByMemberId(memberId, PageRequest.of(0, 100)).getContent();
             OmsOrderExample orderExample = new OmsOrderExample();
@@ -101,32 +106,106 @@ public class HomeServiceImpl implements HomeService {
             if (!completedOrderIds.isEmpty()) {
                 OmsOrderItemExample itemExample = new OmsOrderItemExample();
                 itemExample.createCriteria().andOrderIdIn(completedOrderIds);
-                orderItemMapper.selectByExample(itemExample).forEach(i -> addPreference(products, i.getProductId(), category, brand, 8));
+                orderItemMapper.selectByExample(itemExample).forEach(i -> addPreference(products, i.getProductId(), category, brand, productPreference, 10));
             }
-            reads.forEach(r -> addPreference(products, r.getProductId(), category, brand, 2));
-            collections.forEach(r -> addPreference(products, r.getProductId(), category, brand, 5));
-            products.sort(Comparator.comparingDouble((PmsProduct p) -> score(p, category, brand)).reversed());
+            for (int i = 0; i < reads.size(); i++) {
+                // 历史行为默认比本次行为低一级，避免旧兴趣长期压过近期兴趣。
+                addPreference(products, reads.get(i).getProductId(), category, brand, productPreference,
+                        Math.max(1, 4 - i / 20));
+            }
+            for (int i = 0; i < collections.size(); i++) {
+                addPreference(products, collections.get(i).getProductId(), category, brand, productPreference,
+                        Math.max(2, 8 - i / 20));
+            }
+            products.sort(Comparator.comparingDouble((PmsProduct p) -> score(p, category, brand, productPreference)).reversed()
+                    .thenComparing(PmsProduct::getId));
+
         } catch (Exception ignored) {
             products.sort(Comparator.comparingInt((PmsProduct p) -> Math.max(0, p.getSale() == null ? 0 : p.getSale())).reversed()
                     .thenComparing(PmsProduct::getId));
         }
+        List<PmsProduct> personalized = products.stream()
+                .filter(p -> productPreference.containsKey(p.getId())
+                        || category.containsKey(p.getProductCategoryId())
+                        || brand.containsKey(p.getBrandId()))
+                .toList();
+        int personalizedCount = calculatePersonalizedCount(pageSize, category, productPreference);
+        List<PmsProduct> mixed = mixRecommendations(personalized, diversify(discovery), personalizedCount);
+        products.clear();
+        products.addAll(mixed);
         long offset = (long) (pageNum - 1) * pageSize;
         if (offset >= products.size()) return List.of();
         int from = (int) offset;
         return from >= products.size() ? List.of() : new ArrayList<>(products.subList(from, Math.min(products.size(), from + pageSize)));
     }
 
-    private void addPreference(List<PmsProduct> products, Long productId, Map<Long, Integer> category, Map<Long, Integer> brand, int weight) {
+    private void addPreference(List<PmsProduct> products, Long productId, Map<Long, Integer> category, Map<Long, Integer> brand, Map<Long, Integer> productPreference, int weight) {
         products.stream().filter(p -> p.getId().equals(productId)).findFirst().ifPresent(p -> {
+            productPreference.merge(productId, weight, Integer::sum);
             if (p.getProductCategoryId() != null) category.merge(p.getProductCategoryId(), weight, Integer::sum);
             if (p.getBrandId() != null) brand.merge(p.getBrandId(), weight, Integer::sum);
         });
     }
 
-    private double score(PmsProduct p, Map<Long, Integer> category, Map<Long, Integer> brand) {
-        return category.getOrDefault(p.getProductCategoryId(), 0) * 10D
-                + brand.getOrDefault(p.getBrandId(), 0) * 6D
-                + Math.min(p.getSale() == null ? 0 : p.getSale(), 100000) * 0.01D;
+    private int productPreferenceScore(PmsProduct p, Map<Long, Integer> category, Map<Long, Integer> brand, Map<Long, Integer> productPreference) {
+        return (int) Math.round(score(p, category, brand, productPreference));
+    }
+
+    /**
+     * 依据各类目加权后的数字化占比决定首页个性化槽位；结果始终向下取整。
+     * 采用总偏好权重 / (总偏好权重 + 10) 归一化，避免冷启动时占满首页。
+     */
+    public static int calculatePersonalizedCount(int pageSize, Map<Long, Integer> categoryWeights, Map<Long, Integer> productWeights) {
+        if (pageSize <= 0 || categoryWeights == null || categoryWeights.isEmpty()) return 0;
+        int total = categoryWeights.values().stream().filter(Objects::nonNull).mapToInt(v -> Math.max(0, v)).sum();
+        if (total <= 0) return 0;
+        int count = (int) Math.floor(pageSize * (total / (double) (total + 10)));
+        return Math.max(1, Math.min(pageSize, count));
+    }
+
+    private double score(PmsProduct p, Map<Long, Integer> category, Map<Long, Integer> brand, Map<Long, Integer> productPreference) {
+        return productPreference.getOrDefault(p.getId(), 0) * 3D
+                + category.getOrDefault(p.getProductCategoryId(), 0) * 10D
+                + brand.getOrDefault(p.getBrandId(), 0) * 4D
+                + Math.min(p.getSale() == null ? 0 : p.getSale(), 100000) * 0.01D
+                + (p.getRecommandStatus() != null && p.getRecommandStatus() == 1 ? 2D : 0D)
+                + (p.getNewStatus() != null && p.getNewStatus() == 1 ? 1D : 0D);
+    }
+
+    /** Mixes exactly the requested number of personalized items into each page-sized window. */
+    public static List<PmsProduct> mixRecommendations(List<PmsProduct> ranked, List<PmsProduct> discovery, int personalizedCount) {
+        List<PmsProduct> result = new ArrayList<>(); Set<Long> used = new HashSet<>();
+        int r=0,d=0; int slots=Math.max(0,personalizedCount); int discoverySlots=Math.max(0,Math.max(ranked.size(), discovery.size())-slots);
+        while (r<ranked.size() || d<discovery.size()) {
+            if (slots>0 && r<ranked.size()) { PmsProduct p=ranked.get(r++); if(used.add(p.getId())) {result.add(p);slots--;} continue; }
+            if (d<discovery.size()) { PmsProduct p=discovery.get(d++); if(used.add(p.getId())) {result.add(p);discoverySlots--;} }
+            else if (r<ranked.size()) { PmsProduct p=ranked.get(r++); if(used.add(p.getId())) result.add(p); }
+        }
+        return result;
+    }
+
+    /** Backward-compatible 50/50 mix for callers without a calculated quota. */
+    public static List<PmsProduct> mixRecommendations(List<PmsProduct> ranked, List<PmsProduct> discovery) {
+        List<PmsProduct> result = new ArrayList<>(); Set<Long> used = new HashSet<>(); int r=0,d=0;
+        while (r<ranked.size() || d<discovery.size()) {
+            while(r<ranked.size() && used.contains(ranked.get(r).getId())) r++;
+            if(r<ranked.size()){PmsProduct p=ranked.get(r++);used.add(p.getId());result.add(p);}
+            while(d<discovery.size() && used.contains(discovery.get(d).getId())) d++;
+            if(d<discovery.size()){PmsProduct p=discovery.get(d++);used.add(p.getId());result.add(p);}
+        }
+        return result;
+    }
+
+    private List<PmsProduct> diversify(List<PmsProduct> ranked) {
+        Map<Long, java.util.ArrayDeque<PmsProduct>> groups = new java.util.LinkedHashMap<>();
+        for (PmsProduct p : ranked) groups.computeIfAbsent(p.getProductCategoryId(), k -> new java.util.ArrayDeque<>()).add(p);
+        List<PmsProduct> result = new ArrayList<>();
+        while (result.size() < ranked.size()) {
+            for (java.util.ArrayDeque<PmsProduct> group : groups.values()) {
+                if (!group.isEmpty()) result.add(group.removeFirst());
+            }
+        }
+        return result;
     }
 
     @Override

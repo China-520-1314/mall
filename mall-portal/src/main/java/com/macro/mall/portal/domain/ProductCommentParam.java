@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProductCommentParam {
-    @NotNull
+    private Long productId;
     private Long orderItemId;
 
     @NotNull

@@ -112,6 +112,32 @@ public class CiyuanshenClient {
         }
     }
 
+    public String completeFallback(String instructions, String input) {
+        return completeWith(properties.getFallbackBaseUrl(), properties.getFallbackApiKey(),
+                properties.getFallbackModel(), instructions, input);
+    }
+
+    private String completeWith(String baseUrl, String apiKey, String model, String instructions, String input) {
+        if (apiKey == null || apiKey.isBlank()) throw new AssistantClientException("备用模型未配置");
+        String endpoint = normalizeBaseUrl(baseUrl) + "/chat/completions";
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", model);
+        payload.put("messages", List.of(Map.of("role", "system", "content", instructions), Map.of("role", "user", "content", input)));
+        payload.put("stream", false);
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint))
+                    .timeout(Duration.ofSeconds(Math.max(1, properties.getTimeoutSeconds())))
+                    .header("Authorization", "Bearer " + apiKey).header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload))).build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) throw new AssistantClientException("备用模型服务 HTTP " + response.statusCode());
+            String text = extractText(response.body());
+            if (text == null || text.isBlank()) throw new AssistantClientException("备用模型返回空响应");
+            return text.trim();
+        } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new AssistantClientException("备用模型请求被中断", ex);
+        } catch (IOException ex) { throw new AssistantClientException("备用模型连接失败", ex); }
+    }
+
     private String normalizeBaseUrl(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new AssistantClientException("模型服务地址未配置");

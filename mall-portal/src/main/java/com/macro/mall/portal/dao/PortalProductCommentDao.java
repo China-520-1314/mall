@@ -8,6 +8,8 @@ import java.util.List;
 
 /** 前台商品评价自定义数据访问接口。 */
 public interface PortalProductCommentDao {
+    @org.apache.ibatis.annotations.Update("UPDATE pms_comment SET replay_count=COALESCE(replay_count,0)+1 WHERE id=#{id}")
+    int incrementReplyCount(@Param("id") Long id);
     List<Long> selectCommentedOrderItemIds(@Param("orderItemIds") List<Long> orderItemIds);
 
     int countByOrderId(@Param("orderId") Long orderId);

@@ -32,6 +32,9 @@ public class OmsOrderServiceImpl implements OmsOrderService {
     @Autowired
     private OmsOrderOperateHistoryMapper orderOperateHistoryMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate messageJdbc;
+
     @Override
     public List<OmsOrder> list(OmsOrderQueryParam queryParam, Integer pageSize, Integer pageNum) {
         PageHelper.startPage(pageNum, pageSize);
@@ -39,7 +42,17 @@ public class OmsOrderServiceImpl implements OmsOrderService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public int delivery(List<OmsOrderDeliveryParam> deliveryParamList) {
+        if (deliveryParamList == null || deliveryParamList.isEmpty()) {
+            com.macro.mall.common.exception.Asserts.fail("请选择待发货订单");
+        }
+        java.util.Set<Long> uniqueOrders = new java.util.HashSet<>();
+        for (OmsOrderDeliveryParam param : deliveryParamList) {
+            if (!uniqueOrders.add(param.getOrderId())) com.macro.mall.common.exception.Asserts.fail("不能重复发货同一订单");
+            Integer status = messageJdbc.queryForObject("SELECT status FROM oms_order WHERE id=? FOR UPDATE", Integer.class, param.getOrderId());
+            if (!Integer.valueOf(1).equals(status)) com.macro.mall.common.exception.Asserts.fail("仅待发货订单可以发货");
+        }
         //批量发货
         int count = orderDao.delivery(deliveryParamList);
         //添加操作记录
@@ -54,6 +67,9 @@ public class OmsOrderServiceImpl implements OmsOrderService {
                     return history;
                 }).collect(Collectors.toList());
         orderOperateHistoryDao.insertList(operateHistoryList);
+        for (OmsOrderDeliveryParam param : deliveryParamList) {
+            messageJdbc.update("INSERT INTO ums_member_message(member_id,order_id,title,content,read_status,create_time) SELECT member_id,id,'订单已发货',CONCAT('订单 ',order_sn,' 已发货。快递公司：',COALESCE(delivery_company,''),'，单号：',COALESCE(delivery_sn,'')),0,NOW() FROM oms_order WHERE id=? AND status=2", param.getOrderId());
+        }
         return count;
     }
 
